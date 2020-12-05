@@ -16,6 +16,8 @@ from tqdm import trange
 
 import torch
 
+from env.pointmass import PointmassEnv
+
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def shuffle_rows(arr):
@@ -80,7 +82,20 @@ class MPC:
                     .percentile (float): The percentile used for either catastrophic state or reward-based
                         risk aversion.
         """
-        self.dO, self.dU = params.env.observation_space.shape[0], params.env.action_space.shape[0]
+        if (isinstance(params.env, PointmassEnv)):
+            """
+            print(params.env.observation_space.shape)
+            print(params.env.observation_space.high)
+            print(params.env.observation_space.low)
+            print(params.env.action_space)
+            print(params.env.action_space.shape)
+            print(params.env.action_space.high)
+            print(params.env.action_space.low)
+            print(params.env.action_space.n)
+            """
+            self.dO, self.dU = params.env.obs_dim, params.env.ac_dim
+        else:
+            self.dO, self.dU = params.env.observation_space.shape[0], params.env.action_space.shape[0]
         self.ac_ub, self.ac_lb = params.env.action_space.high, params.env.action_space.low
         self.ac_ub = np.minimum(self.ac_ub, params.get("ac_ub", self.ac_ub))
         self.ac_lb = np.maximum(self.ac_lb, params.get("ac_lb", self.ac_lb))
@@ -176,7 +191,38 @@ class MPC:
         # Construct new training points and add to training set
         new_train_in, new_train_targs = [], []
         for obs, acs in zip(obs_trajs, acs_trajs):
-            new_train_in.append(np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1))
+            # FIXME: dimension error
+            # The train_in variable stores the input array
+            # to the ensemble network.
+            #
+            # When agent samples, the obs returned contains
+            # extra info (e.g. cartpole length, catastrophe, etc.).
+            # We use the obs_preproc function to remove them,
+            # then concatenate the acs to the obs and feed
+            # the concatenated input into the ensemble network
+            
+            """
+            print(obs.shape)
+            print(obs[:-1].shape)
+            print(type(obs[:-1]))
+            # print(self.obs_preproc(obs[:-1]))
+            print(acs.shape)
+            if (acs.ndim == 1):
+                acs = np.expand_dims(acs, axis=1)
+            print(acs.shape)
+            # exit()
+            """
+            temp = np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1)
+            """
+            #print(obs[:-1])
+            print(self.obs_preproc(obs[:-1]))
+            print(self.obs_preproc(obs[:-1]).shape)
+            print(acs)
+            print(temp)
+            print(temp.shape)
+            exit()
+            """
+            new_train_in.append(temp)
             new_train_targs.append(self.targ_proc(obs[:-1], obs[1:]))
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)

@@ -12,6 +12,7 @@ from MBExperiment import MBExperiment
 from MPC import MPC
 from config import create_config
 import env # We run this so that the env is registered
+from env.pointmass import PointmassEnv
 
 import torch
 import numpy as np
@@ -41,6 +42,12 @@ def main(args):
 
     cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
     exp = MBExperiment(cfg.exp_cfg)
+
+    # Set env for PointmassEnv 
+    if (isinstance(cfg.ctrl_cfg.env, PointmassEnv)):
+        cfg.ctrl_cfg.env.set_logdir(exp.logdir)
+        # Change optimizer to discrete CEM
+        cfg.exp_cfg.opt_mode = 'DCEM'
 
     if args.load_model_dir is not None:
         exp.policy.model.load_state_dict(torch.load(os.path.join(args.load_model_dir, 'weights')))

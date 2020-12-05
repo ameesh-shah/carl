@@ -14,3 +14,9 @@ register(
     id='MBRLHalfCheetahDisabled-v0',
     entry_point='env.half_cheetah_disabled:HalfCheetahEnv'
 )
+
+register(
+    id='PointmassMedium-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 1}
+)
