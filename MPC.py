@@ -271,10 +271,15 @@ class MPC:
                 # FIXME: nn dimension error
                 print(train_in)
 
-                mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
+                # FIXME: add catastrophe labe
+                #mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
+                mean, logvar = self.model(train_in, ret_logvar=True)
+
                 inv_var = torch.exp(-logvar)
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
                 state_loss = state_loss.mean(-1).mean(-1).sum()
+
+                #FIXME: add catastrophe loss
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(catastrophe_targ == 1)
                     if num_catastrophes == 0:
@@ -295,7 +300,9 @@ class MPC:
                 val_targ = torch.from_numpy(self.train_targs[idxs[:, :5000]]).to(TORCH_DEVICE).float()
                 val_state_targ = val_targ[..., :-1]
                 val_catastrophe_targ = val_targ[..., -1:]
-                mean, _, catastrophe_prob = self.model(val_in)
+                # FIXME: add catastrophe prob
+                #mean, _, catastrophe_prob = self.model(val_in)
+                mean, _ = self.model(val_in)
                 mse_losses = ((mean - val_state_targ) ** 2).mean(-1).mean(-1)
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(val_catastrophe_targ == 1)
