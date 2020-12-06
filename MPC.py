@@ -148,7 +148,10 @@ class MPC:
         self.ac_buf = np.array([]).reshape(0, self.dU)
         self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
         self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.plan_hor])
+        
+        # Input dimension is ac_dim + obs_dim
         self.train_in = np.array([]).reshape(0, self.dU + self.obs_preproc(np.zeros([1, self.dO])).shape[-1])
+        
         self.gravity_targs = np.array([]).reshape(0, 1)
         self.train_targs = np.array([]).reshape(
             0, self.targ_proc(np.zeros([1, self.dO]), np.zeros([1, self.dO])).shape[-1]
@@ -187,7 +190,6 @@ class MPC:
 
         Returns: None.
         """
-
         # Construct new training points and add to training set
         new_train_in, new_train_targs = [], []
         for obs, acs in zip(obs_trajs, acs_trajs):
@@ -200,13 +202,15 @@ class MPC:
             # We use the obs_preproc function to remove them,
             # then concatenate the acs to the obs and feed
             # the concatenated input into the ensemble network
-            
             """
             print(obs.shape)
             print(obs[:-1].shape)
             print(type(obs[:-1]))
             # print(self.obs_preproc(obs[:-1]))
+            print('====')
+            print(self.dU)
             print(acs.shape)
+            # FIXME: acs seems to lack 1 dimension...
             if (acs.ndim == 1):
                 acs = np.expand_dims(acs, axis=1)
             print(acs.shape)
@@ -224,7 +228,16 @@ class MPC:
             """
             new_train_in.append(temp)
             new_train_targs.append(self.targ_proc(obs[:-1], obs[1:]))
+        """
+        print('*****')
+        print(self.train_in.shape)
+        print([self.train_in])
+        print(new_train_in)
+        print(len(new_train_in))
+        """
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
+        # print(self.train_in)
+        # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
         # Train the model
         self.has_been_trained = True
@@ -254,6 +267,10 @@ class MPC:
                 train_targ = torch.from_numpy(self.train_targs[batch_idxs]).to(TORCH_DEVICE).float()
                 state_targ = train_targ[..., :-1]
                 catastrophe_targ = train_targ[..., -1:]
+
+                # FIXME: nn dimension error
+                print(train_in)
+
                 mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
                 inv_var = torch.exp(-logvar)
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
@@ -328,12 +345,25 @@ class MPC:
 
         Returns: An action (and possibly the predicted cost)
         """
+        # FIXME: sanity check that possible_actions is set
+        # print(self.possible_actions)
+
+        print(self.optimizer)
+
         d_random = isinstance(self.optimizer, DiscreteRandomOptimizer)
         d_cem = isinstance(self.optimizer, DiscreteCEMOptimizer)
         cem = isinstance(self.optimizer, CEMOptimizer)
         if d_random or d_cem:
+            print('***** Using a discrete optimizer')
             if not self.has_been_trained:
-                return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[-1]), size=1)[0]]
+                # print(self.possible_actions)
+                # print(self.possible_actions.shape)
+
+                # FIXME: original code, below, is wrong about arange part. 
+                # Should select the first element of the shape instead of the last.
+                # return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[-1]), size=1)[0]]
+                return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[0]), size=1)[0]]
+
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
                 if d_random:
@@ -351,6 +381,7 @@ class MPC:
             return self.act(obs, t)
 
         else:
+            print('***** Using a continuous optimizer')
             if not self.has_been_trained:
                 return np.random.uniform(self.ac_lb, self.ac_ub, self.ac_lb.shape)
             if self.ac_buf.shape[0] > 0:

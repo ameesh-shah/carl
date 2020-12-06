@@ -40,14 +40,14 @@ def main(args):
 
     assert args.ctrl_type == 'MPC'
 
-    cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
-    exp = MBExperiment(cfg.exp_cfg)
-
     # Set env for PointmassEnv 
     if (isinstance(cfg.ctrl_cfg.env, PointmassEnv)):
-        cfg.ctrl_cfg.env.set_logdir(exp.logdir)
+        cfg.ctrl_cfg.env.set_logdir(cfg.exp_cfg.log_cfg.logdir)
         # Change optimizer to discrete CEM
-        cfg.exp_cfg.opt_mode = 'DCEM'
+        cfg.ctrl_cfg.opt_cfg.mode = 'DCEM'
+
+    cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
+    exp = MBExperiment(cfg.exp_cfg)
 
     if args.load_model_dir is not None:
         exp.policy.model.load_state_dict(torch.load(os.path.join(args.load_model_dir, 'weights')))

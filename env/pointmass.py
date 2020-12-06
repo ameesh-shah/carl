@@ -321,8 +321,11 @@ class PointmassEnv(gym.Env):
     self.action_space = gym.spaces.Discrete(5)
 
     # Based on https://ai-mrkogao.github.io/reinforcement%20learning/openaigymtutorial/
-    self.action_space.low = 0
-    self.action_space.high = self.action_space.n - 1
+    self.action_space.low = 0 # Dummy
+    self.action_space.high = self.action_space.n - 1 # Dummy
+    # FIXME: since this is a discrete action space, there is no high or low.
+    # Instead we need to set the possible actions.
+    self.possible_actions = np.asarray(list(ACT_DICT.values())) 
 
     self.observation_space = gym.spaces.Box(
         low=np.array([0,0]),
@@ -442,8 +445,8 @@ class PointmassEnv(gym.Env):
 
   def step(self, action):
     self.timesteps_left -= 1
-    action = discretize_action(action)
-    action = np.array(ACT_DICT[action])
+    # (resolved) FIXME: remove the level of indirection using ACT_DICT
+    # action = np.array(ACT_DICT[action])
     action = np.random.normal(action, self.action_noise)
     self.state = self.simulate_step(self.state, action)
 
@@ -471,7 +474,6 @@ class PointmassEnv(gym.Env):
 
   def ac_rew(self, action):
       self.timesteps_left -= 1
-      action = discretize_action(action)
       action = np.array(ACT_DICT[action])
       action = np.random.normal(action, self.action_noise)
       new_state = self.simulate_step(self.state, action)
@@ -599,8 +601,8 @@ def refresh_path():
 # FIXME: temporary solution, if uneffective,
 # change the CEM method to the discrete version
 # https://people.smp.uq.edu.au/DirkKroese/ps/CEEncycl.pdf
-def discretize_action(action):
-    return int(round(action.tolist()))
+# def discretize_action(action):
+#     return int(round(action.tolist()))
 
 if __name__ == '__main__':
   env = Pointmass(difficulty=0, dense_reward=False)

@@ -57,6 +57,7 @@ class PtModel(nn.Module):
         self.inputs_sigma.data = torch.from_numpy(sigma).to(TORCH_DEVICE).float()
 
     def forward(self, inputs, ret_logvar=False):
+        # FIXME: dimension errors
 
         # Transform inputs
         inputs = (inputs - self.inputs_mu) / self.inputs_sigma
