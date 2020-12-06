@@ -92,7 +92,7 @@ class PointmassMediumConfigModule:
     K_BINS = 100
     NROLLOUTS_PER_ITER = 1
     PLAN_HOR = 25
-    MODEL_IN, MODEL_OUT = 6, 4
+    MODEL_IN, MODEL_OUT = 4, 2
     GP_NINDUCING_POINTS = 200
 
     # Create and move this tensor to GPU so that
