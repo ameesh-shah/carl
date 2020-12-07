@@ -96,6 +96,7 @@ if __name__ == "__main__":
                         help='suffix to attach to a run')
     parser.add_argument('--record_video', action='store_true',
                         help='whether to record the test rollouts')
+    parser.add_argument('-expname', type=str, help='Name of experiment to organize logging dir.')
     args = parser.parse_args()
 
     args.ctrl_type = "MPC"

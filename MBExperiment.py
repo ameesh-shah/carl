@@ -46,6 +46,8 @@ class MBExperiment:
                     .nrollout_per_itr (int): Number of rollouts per training iteration.
                     .start_epoch (int): Which epoch to start training from, used for continuing to train
                         a trained model.
+                    .nexplore_iters (int): Number of unsupervised exploration iterations to be performed.
+
 
                 .log_cfg:
                     .logdir (str): Directory to log to.
@@ -62,16 +64,24 @@ class MBExperiment:
         self.ntrain_iters = get_required_argument(
             params.exp_cfg, "ntrain_iters", "Must provide number of training iterations."
         )
+        self.nexplore_iters = get_required_argument(
+            params.exp_cfg, "nexplore_iters", "Must provide number of exploration iterations."
+        )
         self.test_percentile = params.sim_cfg.test_percentile
         self.nrollouts_per_iter = params.exp_cfg.get("nrollouts_per_iter", 1)
         self.ninit_rollouts = params.exp_cfg.get("ninit_rollouts", 1)
         self.ntest_rollouts = params.exp_cfg.get("ntest_rollouts", 1)
         self.nadapt_iters = params.exp_cfg.get("nadapt_iters", 0)
         self.policy = get_required_argument(params.exp_cfg, "policy", "Must provide a policy.")
+        self.explore_policy = get_required_argument(params.exp_cfg, "explore_policy", "Must provide policy for unsupervised exploration.")
+
         self.continue_train = params.exp_cfg.get("continue_train", False)
         self.test_domain = params.exp_cfg.get("test_domain", None)
         self.nrollout_per_itr = params.exp_cfg.get("nrollout_per_itr", 1)
         self.start_epoch = params.exp_cfg.get("start_epoch", 0)
+
+        self.nrecord = params.log_cfg.get("nrecord", 0)
+        self.neval = params.log_cfg.get("neval", 1)
         
         self.training_percentile = self.policy.percentile
 
@@ -84,8 +94,11 @@ class MBExperiment:
             self.policy.train_targs = np.load(os.path.join(self.logdir, "train_targs.npy"))
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            strftime("%Y-%m-%d--%H-%M-%S", localtime())
+            strftime("%Y-%m-%d--%H-%M-%S", localtime()),
+            params.log_cfg.get("expname", "") + strftime("%Y-%m-%d--%H:%M:%S", localtime())
+
         )
+        print("Logging to: ", self.logdir)
         self.suffix = params.log_cfg.get("suffix", None)
         if self.suffix is not None:
             self.logdir = self.logdir + '-' + self.suffix
@@ -113,12 +126,31 @@ class MBExperiment:
                     env=self.env,
                 )
             )
+        print("Training with initial rollouts ", self.ninit_rollouts)
+
         if self.ninit_rollouts > 0:
             self.policy.train(
                 [sample["obs"] for sample in samples],
                 [sample["ac"] for sample in samples],
                 [sample["rewards"] for sample in samples],
             )
+
+        #New Training Loop for unsupervised exploration:
+        for dm_i in trange(self.ntrain_iters):
+            print("####################################################################")
+            print("Uncertainty Dynamics Ensemble: Starting training iteration %d." % (i + 1))
+
+            new_samples = []
+            for j_iter in range(max(self.neval, self.nrollouts_per_iter)):
+                #collect data
+                new_samples.append(self.agent.sample(self.task_hor, self.explore_policy))
+
+            if i < self.ntrain_iters - 1:
+                self.explore_policy.train(
+                    [sample["obs"] for sample in new_samples],
+                    [sample["ac"] for sample in new_samples],
+                    [sample["rewards"] for sample in new_samples]
+                )
 
         self.run_training_iters(adaptation=False)
 

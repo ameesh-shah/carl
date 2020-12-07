@@ -5,6 +5,8 @@ from __future__ import print_function
 import time
 
 import numpy as np
+from tqdm import trange
+
 
 
 
@@ -28,7 +30,7 @@ class Agent:
         policy.mode = mode
         O, A, reward_sum, done = [env.reset(mode=mode)], [], 0, False
         policy.reset()
-        for t in range(horizon):
+        for t in trange(horizon):
             start = time.time()
             policy_action = policy.act(O[t], t)
             A.append(policy_action)
