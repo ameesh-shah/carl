@@ -259,7 +259,8 @@ class PointmassEnv(gym.Env):
 
   def __init__(self,
                difficulty=1,
-               dense_reward=False,
+               dense_reward=True,
+               action_noise=0.5
                ):
     """Initialize the point environment.
 
@@ -320,11 +321,10 @@ class PointmassEnv(gym.Env):
     self._width = width
     self.action_space = gym.spaces.Discrete(5)
 
-    # Based on https://ai-mrkogao.github.io/reinforcement%20learning/openaigymtutorial/
+    # since this is a discrete action space, there is no high or low.
+    # Instead we need to set the possible actions.
     self.action_space.low = 0 # Dummy
     self.action_space.high = self.action_space.n - 1 # Dummy
-    # FIXME: since this is a discrete action space, there is no high or low.
-    # Instead we need to set the possible actions.
     self.possible_actions = np.asarray(list(ACT_DICT.values())) 
 
     self.observation_space = gym.spaces.Box(
@@ -335,9 +335,10 @@ class PointmassEnv(gym.Env):
     self.dense_reward = dense_reward
     self.num_actions = 5
     self.epsilon = resize_factor
-    self.action_noise = 0.5
+    self.action_noise = action_noise
     
     self.obs_vec = []
+    self.wall_hits = 0
     self.last_trajectory = None
     self.difficulty = difficulty
 
@@ -363,7 +364,7 @@ class PointmassEnv(gym.Env):
       self.obs_vec = [self._normalize_obs(self.fixed_start.copy())]
       self.state = self.fixed_start.copy()
       self.num_runs += 1
-      return self._normalize_obs(self.state.copy())
+      return self._get_obs(self._normalize_obs(self.state.copy()))
 
   def reset_model(self, seed=None):
     if seed: self.seed(seed)
@@ -375,6 +376,7 @@ class PointmassEnv(gym.Env):
     self.timesteps_left = self.max_episode_steps
     
     self.obs_vec = [self._normalize_obs(self.fixed_start.copy())]
+    self.wall_hits = 0
     self.state = self.fixed_start.copy()
     self.num_runs += 1
     return self._normalize_obs(self.state.copy())
@@ -438,39 +440,85 @@ class PointmassEnv(gym.Env):
     ])
   
   def _is_blocked(self, state):
+    # Check if the state is out of bound
     if not self.observation_space.contains(state):
       return True
+    # Check if the state overlaps with wall
     (i, j) = self._discretize_state(state)
     return (self._walls[i, j] == 1)
 
+  def get_dist_and_reward(self, state):
+    dist = np.linalg.norm(self.state - self.fixed_goal)
+    
+    # In CARL, we want sparse reward
+    # dense_reward defaults to True
+    if self.dense_reward:
+        reward = -dist
+    else:
+        reward = int(dist < self.epsilon) - 1
+    
+    return dist, reward 
+
   def step(self, action):
     self.timesteps_left -= 1
-    # (resolved) FIXME: remove the level of indirection using ACT_DICT
-    # action = np.array(ACT_DICT[action])
     action = np.random.normal(action, self.action_noise)
-    self.state = self.simulate_step(self.state, action)
+    next_state = self.simulate_step(self.state, action)
 
-    dist = np.linalg.norm(self.state - self.fixed_goal)
-    done = (dist < self.epsilon) or (self.timesteps_left == 0)
-    ns = self._normalize_obs(self.state.copy())
-    self.obs_vec.append(ns.copy())
-    
-    if self.dense_reward:
-      reward = -dist
+    # If simulate_step returns the same state as the input state,
+    # then the action is blocked, because the state is out-of-bound
+    # or overlaps with the wall. 
+    # When the agent hits the boundary, the catastrophe flag is set to True.
+    #
+    # We also count the number of time the agent runs into the wall.
+    # A trained agent should minimize the number of times hitting the wall.
+    if np.array_equal(next_state, self.state):
+        # print("hitting the wall!")
+        # exit() # sanity check
+        catastrophe = True
     else:
-      reward = int(dist < self.epsilon) - 1
-   
-    # FIXME: fix catastrophe calculation: when agent hits wall, catastrophe.
-    # catastrophe = (np.abs(ob[1]) > np.pi/2) or (np.abs(ob[0]) >= 2.4)
-    catastrophe = False # Always no catastrophe
+        catastrophe = False
+    self.state = next_state
+
+    # Compute distance between current state and goal state
+    # dist = np.linalg.norm(self.state - self.fixed_goal)
+    dist, reward = self.get_dist_and_reward(self.state)
+    done = (dist < self.epsilon) or (self.timesteps_left == 0)
+
+    # Normalized original obs
+    normalized_obs = self._normalize_obs(self.state.copy())
+
+    # obs_vec is used for plotting trajectories.
+    # keep it intact
+    self.obs_vec.append(normalized_obs.copy())
+    
+    """
+    # In CARL, we want sparse reward
+    # dense_reward defaults to True
+    if self.dense_reward:
+        reward = -dist
+    else:
+        reward = int(dist < self.epsilon) - 1
+    """
+
+    # Add random env variable and default catastrophe 0
+    # Some potential choices for random env variable:
+    # 1. action_noise (currently in use, see _get_obs())
+    # 2. resize_factor of the walls
+    extended_obs = self._get_obs(normalized_obs)
+
+    # catastrophe calculation: when agent hits wall, catastrophe.
     info = {}
     if catastrophe:
-        ob[-1] = 1
+        self.wall_hits += 1
+        extended_obs[-1] = 1
         info['Catastrophe'] = True
     else:
         info['Catastrophe'] = False
 
-    return ns, reward, done, info
+    # log the number of times the agent has hit the wall
+    info['Wall_hits_so_far'] = self.wall_hits
+
+    return extended_obs, reward, done, info
 
   def ac_rew(self, action):
       self.timesteps_left -= 1
@@ -490,8 +538,9 @@ class PointmassEnv(gym.Env):
 
       return ns, reward, done, {}
 
-  def _get_obs(self):
-    return self.state
+  def _get_obs(self, normalized_obs):
+    extended_obs = np.concatenate([normalized_obs, [self.action_noise, 0]], axis=-1)
+    return extended_obs
 
   @property
   def walls(self):
@@ -597,12 +646,6 @@ def refresh_path():
   path['terminals'] = []
   path['rewards'] = []
   return path
-
-# FIXME: temporary solution, if uneffective,
-# change the CEM method to the discrete version
-# https://people.smp.uq.edu.au/DirkKroese/ps/CEEncycl.pdf
-# def discretize_action(action):
-#     return int(round(action.tolist()))
 
 if __name__ == '__main__':
   env = Pointmass(difficulty=0, dense_reward=False)

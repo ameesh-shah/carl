@@ -82,6 +82,7 @@ class MPC:
                     .percentile (float): The percentile used for either catastrophic state or reward-based
                         risk aversion.
         """
+        self.env = params.env
         if (isinstance(params.env, PointmassEnv)):
             """
             print(params.env.observation_space.shape)
@@ -150,8 +151,18 @@ class MPC:
         self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.plan_hor])
         
         # Input dimension is ac_dim + obs_dim
+        # For pointmass, it is 4 (2+2).
         self.train_in = np.array([]).reshape(0, self.dU + self.obs_preproc(np.zeros([1, self.dO])).shape[-1])
-        
+        # FIXME: correct train_in shape (0, 4)
+        # but only returns (0, 3)
+        # Obs only has (x, y)
+        """
+        print(self.dU)
+        print(self.obs_preproc(np.zeros([1, self.dO])).shape)
+        print(self.train_in.shape)
+        exit()
+        """
+
         self.gravity_targs = np.array([]).reshape(0, 1)
         self.train_targs = np.array([]).reshape(
             0, self.targ_proc(np.zeros([1, self.dO]), np.zeros([1, self.dO])).shape[-1]
@@ -193,7 +204,8 @@ class MPC:
         # Construct new training points and add to training set
         new_train_in, new_train_targs = [], []
         for obs, acs in zip(obs_trajs, acs_trajs):
-            # FIXME: dimension error
+            # Each obs/acs is a trajectory of state/action.
+            #
             # The train_in variable stores the input array
             # to the ensemble network.
             #
@@ -202,21 +214,26 @@ class MPC:
             # We use the obs_preproc function to remove them,
             # then concatenate the acs to the obs and feed
             # the concatenated input into the ensemble network
+            #
+            # obs[:-1] is removing the last state in the obs trajectory.
+            #
+            # There are also additional env params in an observation
+            # such as cartpole_length (in cartpole), 
+            # action_noise (pointmass). We use self.obs_preproc to
+            # prepare an input to the ensemble network.
+
             """
+            print(obs)
             print(obs.shape)
             print(obs[:-1].shape)
-            print(type(obs[:-1]))
-            # print(self.obs_preproc(obs[:-1]))
-            print('====')
-            print(self.dU)
-            print(acs.shape)
-            # FIXME: acs seems to lack 1 dimension...
-            if (acs.ndim == 1):
-                acs = np.expand_dims(acs, axis=1)
-            print(acs.shape)
-            # exit()
+            print(obs[:-1])
+            print(self.obs_preproc(obs[:-1]))
             """
+            # print(obs)
+            # print(obs.shape)
             temp = np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1)
+            # print(temp)
+            # exit()
             """
             #print(obs[:-1])
             print(self.obs_preproc(obs[:-1]))
@@ -235,8 +252,15 @@ class MPC:
         print(new_train_in)
         print(len(new_train_in))
         """
+        print(self.train_in)
+        print(new_train_in)
+        print(new_train_in[0].shape)
+        print([self.train_in] + new_train_in)
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
         # print(self.train_in)
+        # print(self.train_in.shape)
+        exit()
+
         # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
         # Train the model
@@ -264,18 +288,30 @@ class MPC:
                 loss += self.model.compute_decays()
 
                 train_in = torch.from_numpy(self.train_in[batch_idxs]).to(TORCH_DEVICE).float()
+
+                # Receives train targs and decompose into state targ and catastrophe targ
                 train_targ = torch.from_numpy(self.train_targs[batch_idxs]).to(TORCH_DEVICE).float()
                 state_targ = train_targ[..., :-1]
                 catastrophe_targ = train_targ[..., -1:]
 
                 # FIXME: nn dimension error
-                print(train_in)
+                """
+                print(train_in.shape)
+                print(self.train_in.shape)
+                exit()
+                """
 
-                # FIXME: add catastrophe labe
-                #mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
-                mean, logvar = self.model(train_in, ret_logvar=True)
+                # FIXME: add catastrophe label
+                mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
 
                 inv_var = torch.exp(-logvar)
+                """
+                print(mean.shape)
+                print(state_targ.shape)
+                print(inv_var.shape)
+                print(logvar.shape)
+                exit()
+                """
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
                 state_loss = state_loss.mean(-1).mean(-1).sum()
 
@@ -301,8 +337,7 @@ class MPC:
                 val_state_targ = val_targ[..., :-1]
                 val_catastrophe_targ = val_targ[..., -1:]
                 # FIXME: add catastrophe prob
-                #mean, _, catastrophe_prob = self.model(val_in)
-                mean, _ = self.model(val_in)
+                mean, _, catastrophe_prob = self.model(val_in)
                 mse_losses = ((mean - val_state_targ) ** 2).mean(-1).mean(-1)
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(val_catastrophe_targ == 1)
@@ -424,7 +459,15 @@ class MPC:
         for t in range(self.plan_hor):
             cur_acs = ac_seqs[t]
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
-            cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
+            # We should use the reward in Pointmass
+            # FIXME: check whether rewards match the actions
+            if (isinstance(self.env, PointmassEnv)):
+                _, reward = params.env.get_dist_and_reward(next_obs)
+                obs_cost = -1 * reward
+            else:
+                obs_cost = self.obs_cost_fn(next_obs)
+            cost = obs_cost + self.ac_cost_fn(cur_acs)
             if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
             cost = cost.view(-1, self.npart)
@@ -461,9 +504,15 @@ class MPC:
         mean, var, catastrophe_prob = self.model(inputs)
 
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
+        # print(predictions.shape)
 
         predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
-
+        """
+        print(mean.shape)
+        print(predictions.shape)
+        print(catastrophe_prob.shape)
+        exit()
+        """
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
 
