@@ -3,6 +3,7 @@ import scipy.sparse.csgraph
 import numpy as np
 import gym
 import pickle
+import torch
 
 WALLS = {
     'Small':
@@ -277,7 +278,9 @@ class PointmassEnv(gym.Env):
     self.fig = self.plt.figure()
     
     self.action_dim = self.ac_dim = 2
-    self.observation_dim = self.obs_dim = 2
+    # Normal observation dim + random variable + catastrophe prob
+    # Similar to cartpole
+    self.observation_dim = self.obs_dim = 4 # x, y, action_noise, catastrophe_prob
     self.env_name = 'pointmass'
     self.is_gym = True
 
@@ -448,8 +451,24 @@ class PointmassEnv(gym.Env):
     return (self._walls[i, j] == 1)
 
   def get_dist_and_reward(self, state):
-    dist = np.linalg.norm(self.state - self.fixed_goal)
-    
+    """
+    print('=====')
+    print(state)
+    """
+    if (isinstance(state, torch.Tensor)):
+        state = state.detach().numpy()
+    """
+    print(type(state))
+    print(state.shape)
+    print(type(self.fixed_goal))
+    print(self.fixed_goal.shape)
+    print(self.fixed_goal)
+    print(state - self.fixed_goal)
+    """
+    dist = np.linalg.norm(state - self.fixed_goal, axis=(state.ndim-1))
+    """
+    print(dist.shape)
+    """
     # In CARL, we want sparse reward
     # dense_reward defaults to True
     if self.dense_reward:

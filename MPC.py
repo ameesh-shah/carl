@@ -152,6 +152,11 @@ class MPC:
         
         # Input dimension is ac_dim + obs_dim
         # For pointmass, it is 4 (2+2).
+        """
+        print(self.dO)
+        print(self.dU)
+        exit()
+        """
         self.train_in = np.array([]).reshape(0, self.dU + self.obs_preproc(np.zeros([1, self.dO])).shape[-1])
         # FIXME: correct train_in shape (0, 4)
         # but only returns (0, 3)
@@ -252,14 +257,16 @@ class MPC:
         print(new_train_in)
         print(len(new_train_in))
         """
+        """
         print(self.train_in)
         print(new_train_in)
         print(new_train_in[0].shape)
         print([self.train_in] + new_train_in)
+        """
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
         # print(self.train_in)
         # print(self.train_in.shape)
-        exit()
+        # exit()
 
         # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
@@ -463,13 +470,19 @@ class MPC:
             # We should use the reward in Pointmass
             # FIXME: check whether rewards match the actions
             if (isinstance(self.env, PointmassEnv)):
-                _, reward = params.env.get_dist_and_reward(next_obs)
+                _, reward = self.env.get_dist_and_reward(next_obs[..., :-2])
                 obs_cost = -1 * reward
             else:
                 obs_cost = self.obs_cost_fn(next_obs)
             cost = obs_cost + self.ac_cost_fn(cur_acs)
-            if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
-                cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
+
+            # FIXME: one difference between CARL and this work is that
+            # during the exploration phase of this work, the agent is aware of safety
+            # during exploration, instead of just at test time.
+            # if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
+                # cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
+            cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
+
             cost = cost.view(-1, self.npart)
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)

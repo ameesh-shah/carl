@@ -18,7 +18,7 @@ class PointmassMediumConfigModule:
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 25
-    MODEL_IN, MODEL_OUT = 2, 3 # In; (x, y), Out: (x, y, prob)
+    MODEL_IN, MODEL_OUT = 4, 3 # In; (x, y, ac_x, ac_y), Out: (x, y, prob)
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
     CATASTROPHE_COST = 10000
@@ -47,12 +47,13 @@ class PointmassMediumConfigModule:
     def obs_preproc(obs):
         # ..., action_noise, catastrophe
         # The function simply removes the action_noise
-        print(obs)
-        print(obs.shape)
+        # print(obs)
+        # print(obs.shape)
+        assert obs.shape[-1] == 4
         if isinstance(obs, np.ndarray):
-            return obs
+            return obs[..., :-2]
         else:
-            return obs
+            return obs[..., :-2]
         return obs
 
     # This post-processing function is used in _predict_next_obs in MPC,
@@ -112,15 +113,21 @@ class PointmassMediumConfigModule:
         print(percentile)
 
         catastrophe_mask = obs[..., -1] > percentile / 100
+        
         print('***** catastroophe mask')
         print(catastrophe_mask)
         print('***** obs[..., -1]')
         print(obs[..., -1])
 
+        print(type(catastrophe_mask))
+        print(catastrophe_mask.shape)
+        print(type(cost))
+        print(cost.shape)
+
         cost[catastrophe_mask] += CONFIG_MODULE.CATASTROPHE_COST
         print('***** cost[catastrophe_mas]')
         print(cost[catastrophe_mask])
-
+        # exit()
         return cost
 
 CONFIG_MODULE = PointmassMediumConfigModule

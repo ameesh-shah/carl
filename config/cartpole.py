@@ -42,16 +42,34 @@ class CartPoleConfigModule:
             }
         }
 
+    # This method takes an input of element shape self.dO == 6.
+    # which includes pendulum length and prob.
+    # Then it outputs a array of elements with shape == 5,
+    # which becomes the train_in and does not include length and prob.
     @staticmethod
     def obs_preproc(obs):
         #.... pendulum_length, catastrophe
+        """
+        print('*************')
+        print(obs)
+        print(obs.shape)
+        """
         if isinstance(obs, np.ndarray):
-            return np.concatenate([np.sin(obs[:, 1:2]), np.cos(obs[:, 1:2]), obs[:, :1], obs[:, 2:-2]], axis=1)
+            # print(obs)
+            ret = np.concatenate([np.sin(obs[:, 1:2]), np.cos(obs[:, 1:2]), obs[:, :1], obs[:, 2:-2]], axis=1)
+            # print(ret.shape)
+            # exit()
+            return ret
         else:
             return torch.cat([torch.sin(obs[:, 1:2]), torch.cos(obs[:, 1:2]), obs[:, :1], obs[:, 2:-2]], dim=1)
 
     @staticmethod
     def obs_postproc(obs, pred):
+        """
+        print(obs)
+        print(pred)
+        exit()
+        """
         return torch.cat((obs[..., :-2] + pred[..., :-1], obs[..., -2:-1],
                           CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1)
 
@@ -108,8 +126,32 @@ class CartPoleConfigModule:
 
     @staticmethod
     def catastrophe_cost_fn(obs, cost, percentile):
+        print('***** obs')
+        print(obs.shape)
+        print(obs)
+        print('***** cost')
+        print(cost)
+        print('***** percentile')
+        print(percentile)
+
         catastrophe_mask = obs[..., -1] > percentile / 100
+
+        print('***** catastroophe mask')
+        print(catastrophe_mask)
+        print('***** obs[..., -1]')
+        print(obs[..., -1])
+
+        print(type(catastrophe_mask))
+        print(catastrophe_mask.shape)
+        print(type(cost)) # FIXME: should be a tensor
+        print(cost.shape)
+
         cost[catastrophe_mask] += CONFIG_MODULE.CATASTROPHE_COST
+
+        print('***** cost[catastrophe_mas]')
+        print(cost[catastrophe_mask])
+
+        exit()
         return cost
 
 CONFIG_MODULE = CartPoleConfigModule

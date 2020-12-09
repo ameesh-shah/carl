@@ -6,6 +6,8 @@ import os
 from filelock import FileLock
 import xml.etree.ElementTree
 
+# FIXME: this seems to be an undocumented cartpole with
+# observation_space == 6 and a continuous action
 class CartPoleEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
         utils.EzPickle.__init__(self)
@@ -33,6 +35,7 @@ class CartPoleEnv(mujoco_env.MujocoEnv, utils.EzPickle):
             info['Catastrophe'] = False
         notdone = np.isfinite(ob).all() and not (catastrophe and self.mode == 'test')
         done = not notdone
+
         return ob, reward, done, info
 
     def reset_model(self):
@@ -43,9 +46,12 @@ class CartPoleEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.set_state(qpos, qvel)
         return self._get_obs()
 
+    # original_obs (4) + pendulum_length (1) + catastrophe (1)
     def _get_obs(self):
         original_obs = np.concatenate([self.data.qpos, self.data.qvel]).ravel()
         curr_obs = np.concatenate([original_obs, [self.pendulum_length, 0]], axis=-1)
+        # print(curr_obs)
+        assert self.pendulum_length > 0
         return curr_obs
 
     def _get_ee_pos(self, x):
