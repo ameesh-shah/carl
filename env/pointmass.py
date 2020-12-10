@@ -260,7 +260,7 @@ class PointmassEnv(gym.Env):
 
   def __init__(self,
                difficulty=1,
-               dense_reward=True,
+               dense_reward=False,
                action_noise=0.5
                ):
     """Initialize the point environment.
@@ -326,8 +326,8 @@ class PointmassEnv(gym.Env):
 
     # since this is a discrete action space, there is no high or low.
     # Instead we need to set the possible actions.
-    self.action_space.low = 0 # Dummy
-    self.action_space.high = self.action_space.n - 1 # Dummy
+    self.action_space.low = -1 # Dummy
+    self.action_space.high = -1 # Dummy
     self.possible_actions = np.asarray(list(ACT_DICT.values())) 
 
     self.observation_space = gym.spaces.Box(
@@ -474,7 +474,7 @@ class PointmassEnv(gym.Env):
     if self.dense_reward:
         reward = -dist
     else:
-        reward = int(dist < self.epsilon) - 1
+        reward = (dist < self.epsilon).astype(int) - 1
     
     return dist, reward 
 

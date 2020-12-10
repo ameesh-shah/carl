@@ -151,7 +151,6 @@ class CartPoleConfigModule:
         print('***** cost[catastrophe_mas]')
         print(cost[catastrophe_mask])
 
-        exit()
         return cost
 
 CONFIG_MODULE = CartPoleConfigModule

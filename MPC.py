@@ -147,7 +147,17 @@ class MPC:
         # Controller state variables
         self.has_been_trained = params.prop_cfg.get("model_pretrained", False)
         self.ac_buf = np.array([]).reshape(0, self.dU)
-        self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+
+        # Init prev_sol based on optimizer type
+        #self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+        if isinstance(self.optimizer, DiscreteRandomOptimizer):
+            self.prev_sol = np.ones(shape=[self.plan_hor]) * (1 / self.plan_hor)
+        elif isinstance(self.optimizer, DiscreteCEMOptimizer):
+            # self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
+            self.prev_sol = np.ones(shape = [self.plan_hor, self.env.action_space.n]) * (1 / self.env.action_space.n)
+        else:
+            self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+
         self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.plan_hor])
         
         # Input dimension is ac_dim + obs_dim
@@ -378,7 +388,21 @@ class MPC:
         if isinstance(self.optimizer, DiscreteRandomOptimizer):
             self.prev_sol = np.ones(shape=[self.plan_hor]) * (1 / self.plan_hor)
         elif isinstance(self.optimizer, DiscreteCEMOptimizer):
+            # FIXME: this looks suspicious
+            # This looks wrong, since it is not how it is originally initialized.
+            """
+            print('******')
+            print('before')
+            print(self.prev_sol)
             self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
+            print('after')
+            print(self.prev_sol)
+            exit()
+            """
+            # self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+            # self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
+            self.prev_sol = np.ones(shape = [self.plan_hor, self.env.action_space.n]) * (1 / self.env.action_space.n)
+
         else:
             self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
         self.optimizer.reset()
@@ -419,13 +443,37 @@ class MPC:
                     return action
                 return self.possible_actions[np.argmax(action)]
             self.sy_cur_obs = obs
+
+            # (Resolved) What is soln here?
+            # It is an ndarray of shape (?, 25, 5)
+            # with 5 being the probability of actions
+            print('prev_sol')
+            print(self.prev_sol)
             soln = self.optimizer.obtain_solution(self.prev_sol, self.possible_actions)
+            print('soln')
+            print(soln)
+
             if d_random:
                 self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
                 self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
             elif d_cem:
-                self.prev_sol = np.concatenate([np.copy(soln)[1:], np.zeros((1, self.per * self.dU))])
-                self.ac_buf = soln[:1].reshape(-1, self.dU)
+                print(np.copy(soln)[1:].shape)
+                print(np.copy(soln)[self.per * self.dU:].shape)
+                print(np.zeros((1, self.per * self.dU)).shape)
+
+                # (Resolved) I don't understand what this concat is doing.
+                # After we are done with the current action, we pop it
+                # and append a new entry.
+                # self.prev_sol = np.concatenate([np.copy(soln)[1:], np.zeros((1, self.per * self.dU))])
+                self.prev_sol = np.concatenate([np.copy(soln)[1:], np.zeros((1, self.per * self.env.action_space.n))])
+
+                # (Resolved) original code does not convert prob back to action
+                # Fill buffer with the __action__ by selecting the action
+                # with max probability.
+                # self.ac_buf = soln[:1].reshape(-1, self.dU)
+                self.ac_buf = self.env.possible_actions[np.argmax(soln[:1])]
+                print('ac_buf')
+                print(self.ac_buf)
 
             return self.act(obs, t)
 
@@ -439,6 +487,9 @@ class MPC:
 
             self.sy_cur_obs = obs
 
+            print('prev_sol')
+            print(self.prev_sol)
+            exit()
             soln = self.optimizer.obtain_solution(self.prev_sol, self.init_var)
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
@@ -471,16 +522,19 @@ class MPC:
             # FIXME: check whether rewards match the actions
             if (isinstance(self.env, PointmassEnv)):
                 _, reward = self.env.get_dist_and_reward(next_obs[..., :-2])
-                obs_cost = -1 * reward
+                # The cost should mostly be ones, since
+                # the reward is sparse.
+                cost = -1 * reward + self.ac_cost_fn(cur_acs)
+                cost = torch.Tensor(cost)
             else:
-                obs_cost = self.obs_cost_fn(next_obs)
-            cost = obs_cost + self.ac_cost_fn(cur_acs)
+                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             # FIXME: one difference between CARL and this work is that
             # during the exploration phase of this work, the agent is aware of safety
             # during exploration, instead of just at test time.
             # if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
                 # cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
+
             cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
 
             cost = cost.view(-1, self.npart)

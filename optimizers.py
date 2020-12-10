@@ -171,11 +171,22 @@ class DiscreteCEMOptimizer(Optimizer):
     def reset(self):
         pass
 
+    # This function should return concrete action (e.g. [-1, 0])
+    # instead of action id, because the action will be fed into 
+    # _predict_next_obs
     def sample_from_categorical(self, probs, possible_actions, num_samples):
+        print('====')
+        print(probs)
         probs += 0.001 # prevent torch from thinking anything is < 0
-        samples = torch.distributions.categorical.Categorical(probs=torch.from_numpy(probs)).sample(
-            [num_samples])
+        samples = torch.distributions.categorical.Categorical(probs=torch.from_numpy(probs)).sample([num_samples])
+        print(samples)
+        print(samples.shape)
+        print(possible_actions)
+
+        
         samples = possible_actions[samples.numpy()].astype(np.float32)
+        print(samples)
+        print(samples.shape)
         return samples
 
     # performing one hot encoding
@@ -187,15 +198,84 @@ class DiscreteCEMOptimizer(Optimizer):
             possible_actions (np.ndarray): The possible actions this discrete env allows
         """
         mean, t = init_mean, 0
+        print(mean)
+        print(mean.shape)
+        assert mean.shape == (25, 5)
         while t < self.max_iters:
+            print('t: ' + str(t))
+
+            # Should this return a series of concrete actions
             samples = self.sample_from_categorical(mean, possible_actions, self.popsize)
-            samples = samples.reshape(self.popsize, self.sol_dim)
+            # Shape here should be (400, 25, 2)
+            # samples = samples.reshape(self.popsize, self.sol_dim)
+            samples = samples.reshape(self.popsize, mean.shape[0], int(self.sol_dim / mean.shape[0]))
+            print('popsize: ' + str(self.popsize))
+            print('sample shape: ' + str(samples.shape))
+
+            # Is the shape here correct?
             costs = self.cost_function(samples)
-            elites = samples[np.argsort(costs)][:self.num_elites].reshape(self.num_elites, *mean.shape)
-            new_mean = np.mean(elites, axis=0)
+            print('costs:')
+            print(costs)
+            print(costs.shape)
+            print('mean:')
+            print(mean)
+            print(*mean.shape)
+            print(self.num_elites)
+            elites = samples[np.argsort(costs)][:self.num_elites]
+            print('elites')
+            print(elites)
+            print(elites.shape)
+            print(self.sol_dim)
+            print(self.popsize)
+
+            # FIXME: encounter dimensionality error here.
+            # FIXME: need 1 more step between elites and mean
+            # elites are concrete action samples. [0, -1], not [0.2, 0.2, 0.2, 0.2, 0.2]
+            print(elites.shape)
+            elites_prob = np.zeros((self.num_elites, *mean.shape))
+            for i in range(elites.shape[0]): # num_elites
+                for j in range(elites.shape[1]): # plan_hor
+                    if np.array_equal(elites[i, j], np.array([0,0])):
+                        elites_prob[i, j, 0] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([0,-1])):
+                        elites_prob[i, j, 1] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([0,1])):
+                        elites_prob[i, j, 2] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([-1,0])):
+                        elites_prob[i, j, 3] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([1,0])):
+                        elites_prob[i, j, 4] = 1.0
+            print('elites_prob')
+            print(elites_prob)
+            # It is trying to do 2000 -> (40, 25, 5)
+            # elites = elites.reshape(self.num_elites, *mean.shape)
+            # But it should do 2000 -> (40, 25, 2)
+            # elites = elites.reshape(self.num_elites, mean.shape[0], int(self.sol_dim / mean.shape[0]))
+
+
+            new_mean = np.mean(elites_prob, axis=0)
+            print('new_mean')
+            print(type(new_mean))
+            print(new_mean.shape)
+            print(new_mean)
+
+            # Update mean with a constant alpha term
             mean = self.alpha * mean + (1 - self.alpha) * new_mean
-            normalization_factor = mean.sum(axis=1)
+            print('self.alpha')
+            print(type(self.alpha))
+            print(self.alpha)
+
+            print('mean')
+            print(type(mean))
+            print(mean.shape)
+            print(mean)
+
+            normalization_factor = mean.sum(axis=-1)
+            print('normalization factor')
+            print(normalization_factor)
             mean = mean / normalization_factor[:, np.newaxis]
+            print('final mean')
+            print(mean)
             t += 1
 
         return mean
