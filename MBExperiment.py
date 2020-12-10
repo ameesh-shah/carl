@@ -19,7 +19,7 @@ from gym import wrappers
 import torch
 
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
+#Do
 
 class MBExperiment:
     def __init__(self, params):
@@ -64,16 +64,12 @@ class MBExperiment:
         self.ntrain_iters = get_required_argument(
             params.exp_cfg, "ntrain_iters", "Must provide number of training iterations."
         )
-        self.nexplore_iters = get_required_argument(
-            params.exp_cfg, "nexplore_iters", "Must provide number of exploration iterations."
-        )
         self.test_percentile = params.sim_cfg.test_percentile
         self.nrollouts_per_iter = params.exp_cfg.get("nrollouts_per_iter", 1)
         self.ninit_rollouts = params.exp_cfg.get("ninit_rollouts", 1)
         self.ntest_rollouts = params.exp_cfg.get("ntest_rollouts", 1)
         self.nadapt_iters = params.exp_cfg.get("nadapt_iters", 0)
         self.policy = get_required_argument(params.exp_cfg, "policy", "Must provide a policy.")
-        self.explore_policy = get_required_argument(params.exp_cfg, "explore_policy", "Must provide policy for unsupervised exploration.")
 
         self.continue_train = params.exp_cfg.get("continue_train", False)
         self.test_domain = params.exp_cfg.get("test_domain", None)
@@ -134,23 +130,6 @@ class MBExperiment:
                 [sample["ac"] for sample in samples],
                 [sample["rewards"] for sample in samples],
             )
-
-        #New Training Loop for unsupervised exploration:
-        for dm_i in trange(self.ntrain_iters):
-            print("####################################################################")
-            print("Uncertainty Dynamics Ensemble: Starting training iteration %d." % (i + 1))
-
-            new_samples = []
-            for j_iter in range(max(self.neval, self.nrollouts_per_iter)):
-                #collect data
-                new_samples.append(self.agent.sample(self.task_hor, self.explore_policy))
-
-            if i < self.ntrain_iters - 1:
-                self.explore_policy.train(
-                    [sample["obs"] for sample in new_samples],
-                    [sample["ac"] for sample in new_samples],
-                    [sample["rewards"] for sample in new_samples]
-                )
 
         self.run_training_iters(adaptation=False)
 

@@ -40,7 +40,6 @@ def main(args):
     assert args.ctrl_type == 'MPC'
 
     cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
-    cfg.exp_cfg.exp_cfg.explore_policy = MPC(cfg.ctrl_cfg)
 
     exp = MBExperiment(cfg.exp_cfg)
 
