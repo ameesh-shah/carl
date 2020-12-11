@@ -303,7 +303,6 @@ class PointmassEnv(gym.Env):
       self.fixed_goal = np.array([10.0, 10.0]) * resize_factor
       self.max_episode_steps = 100
     elif difficulty == 3:
-      #NOTE TO STUDENTS: FEEL FREE TO EDIT THESE PARAMS FOR THE EXTRA CREDIT PROBLEM!
       walls = 'Maze11x11'
       resize_factor = 1
       self.fixed_start = np.array([0.5, 0.5]) * resize_factor
@@ -406,24 +405,10 @@ class PointmassEnv(gym.Env):
     (i2, j2) = self._discretize_state(goal.copy())
     return self._apsp[i1, j1, i2, j2]
 
-  """
-  def simulate_step(self, state, action):
-    num_substeps = 10
-    dt = 1.0 / num_substeps
-    num_axis = len(action)
-    for _ in np.linspace(0, 1, num_substeps):
-      for axis in range(num_axis):
-        new_state = state.copy()
-        new_state[axis] += dt * action[axis]
-
-        if not self._is_blocked(new_state):
-          state = new_state
-    return state
-  """
 
   def simulate_step(self, state, action):
-    num_substeps = 2
-    dt = 1 / num_substeps
+    num_substeps = 1
+    dt = 0.5 / num_substeps
     num_axis = len(action)
     for _ in np.linspace(0, 1, num_substeps):
       for axis in range(num_axis):
@@ -638,7 +623,7 @@ class PointmassEnv(gym.Env):
     # Create empty plot with blank marker containing the extra label
     self.plt.plot([], [], ' ', label="# of wall hits: " + str(self.wall_hits))
 
-    self.plt.legend('upper right')
+    self.plt.legend(loc='upper right')
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
 
   def get_last_trajectory(self):

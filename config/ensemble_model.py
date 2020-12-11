@@ -49,20 +49,11 @@ class EnsembleModel(nn.Module):
         # Transform inputs
         # NUM_NETS x BATCH_SIZE X INPUT_LENGTH
 
-        """
-        print(inputs)
-        print(inputs.shape)
-        print(self.inputs_mu.shape)
-        print(self.inputs_sigma.shape)
-        """
-
         # Normalizing inputs
         inputs = (inputs - self.inputs_mu) / self.inputs_sigma
 
         for i, layer in enumerate(zip(self.linear_layers[::2], self.linear_layers[1::2])):
             weight, bias = layer
-            # print(weight.shape)
-            # print(bias.shape)
             inputs = inputs.matmul(weight) + bias
             if i < self.num_layers - 1:
                 inputs = swish(inputs)
