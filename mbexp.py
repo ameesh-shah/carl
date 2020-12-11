@@ -109,6 +109,8 @@ if __name__ == "__main__":
 
     #args.ctrl_type = "MPC"
 
+    assert not args.no_catastrophe_pred, "JL: you should be running CARL with catastrophe state prediction"
+
     if args.start_epoch != 0:
         assert args.ntrain_iters > args.start_epoch, "must end at epoch greater than start epoch"
     if args.ntrain_iters != None and args.ntrain_iters > 0 and args.start_epoch != args.ntrain_iters and args.load_model_dir != None:
