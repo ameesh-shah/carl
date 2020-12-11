@@ -9,7 +9,7 @@ import pprint
 from dotmap import DotMap
 
 from MBExperiment import MBExperiment
-from MPC import MPC
+from MPC import MPC, RNDExploreMPC, ExploreEnsembleVarianceMPC
 from config import create_config
 import env # We run this so that the env is registered
 
@@ -37,9 +37,16 @@ def main(args):
     cfg = create_config(args)
     cfg.pprint()
 
-    assert args.ctrl_type == 'MPC'
-
-    cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
+    #assert args.ctrl_type == 'MPC'
+    if args.ctrl_type == 'PuP':
+        print("Using Pets-using-Pets Policy.")
+        cfg.exp_cfg.exp_cfg.policy = ExploreEnsembleVarianceMPC(cfg.ctrl_cfg)
+    elif args.ctrl_type == 'RND':
+        print("Using RND Policy.")
+        cfg.exp_cfg.exp_cfg.policy = RNDExploreMPC(cfg.ctrl_cfg)
+    else:
+        print("Using default MPC Policy.")
+        cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
 
     exp = MBExperiment(cfg.exp_cfg)
 
@@ -95,10 +102,12 @@ if __name__ == "__main__":
                         help='suffix to attach to a run')
     parser.add_argument('--record_video', action='store_true',
                         help='whether to record the test rollouts')
+    parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what policy for pretraining we want to use." + \
+                                                                  "options so far are: MPC, PuP, RND")
     #parser.add_argument('-expname', type=str, help='Name of experiment to organize logging dir.')
     args = parser.parse_args()
 
-    args.ctrl_type = "MPC"
+    #args.ctrl_type = "MPC"
 
     if args.start_epoch != 0:
         assert args.ntrain_iters > args.start_epoch, "must end at epoch greater than start epoch"
