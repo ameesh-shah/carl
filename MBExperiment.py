@@ -113,6 +113,7 @@ class MBExperiment:
                     env=self.env,
                 )
             )
+
         if self.ninit_rollouts > 0:
             self.policy.train(
                 [sample["obs"] for sample in samples],
@@ -120,6 +121,7 @@ class MBExperiment:
                 [sample["rewards"] for sample in samples],
             )
 
+        # Learning the dynamics and safety model
         self.run_training_iters(adaptation=False)
 
         # Save training buffers at end of training so we can load for adaptation if required

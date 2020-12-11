@@ -84,16 +84,6 @@ class MPC:
         """
         self.env = params.env
         if (isinstance(params.env, PointmassEnv)):
-            """
-            print(params.env.observation_space.shape)
-            print(params.env.observation_space.high)
-            print(params.env.observation_space.low)
-            print(params.env.action_space)
-            print(params.env.action_space.shape)
-            print(params.env.action_space.high)
-            print(params.env.action_space.low)
-            print(params.env.action_space.n)
-            """
             self.dO, self.dU = params.env.obs_dim, params.env.ac_dim
         else:
             self.dO, self.dU = params.env.observation_space.shape[0], params.env.action_space.shape[0]
@@ -162,21 +152,10 @@ class MPC:
         
         # Input dimension is ac_dim + obs_dim
         # For pointmass, it is 4 (2+2).
-        """
-        print(self.dO)
-        print(self.dU)
-        exit()
-        """
         self.train_in = np.array([]).reshape(0, self.dU + self.obs_preproc(np.zeros([1, self.dO])).shape[-1])
         # FIXME: correct train_in shape (0, 4)
         # but only returns (0, 3)
         # Obs only has (x, y)
-        """
-        print(self.dU)
-        print(self.obs_preproc(np.zeros([1, self.dO])).shape)
-        print(self.train_in.shape)
-        exit()
-        """
 
         self.gravity_targs = np.array([]).reshape(0, 1)
         self.train_targs = np.array([]).reshape(
@@ -237,46 +216,11 @@ class MPC:
             # action_noise (pointmass). We use self.obs_preproc to
             # prepare an input to the ensemble network.
 
-            """
-            print(obs)
-            print(obs.shape)
-            print(obs[:-1].shape)
-            print(obs[:-1])
-            print(self.obs_preproc(obs[:-1]))
-            """
-            # print(obs)
-            # print(obs.shape)
             temp = np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1)
-            # print(temp)
-            # exit()
-            """
-            #print(obs[:-1])
-            print(self.obs_preproc(obs[:-1]))
-            print(self.obs_preproc(obs[:-1]).shape)
-            print(acs)
-            print(temp)
-            print(temp.shape)
-            exit()
-            """
             new_train_in.append(temp)
             new_train_targs.append(self.targ_proc(obs[:-1], obs[1:]))
-        """
-        print('*****')
-        print(self.train_in.shape)
-        print([self.train_in])
-        print(new_train_in)
-        print(len(new_train_in))
-        """
-        """
-        print(self.train_in)
-        print(new_train_in)
-        print(new_train_in[0].shape)
-        print([self.train_in] + new_train_in)
-        """
+
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
-        # print(self.train_in)
-        # print(self.train_in.shape)
-        # exit()
 
         # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
@@ -311,28 +255,12 @@ class MPC:
                 state_targ = train_targ[..., :-1]
                 catastrophe_targ = train_targ[..., -1:]
 
-                # FIXME: nn dimension error
-                """
-                print(train_in.shape)
-                print(self.train_in.shape)
-                exit()
-                """
-
-                # FIXME: add catastrophe label
                 mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
 
                 inv_var = torch.exp(-logvar)
-                """
-                print(mean.shape)
-                print(state_targ.shape)
-                print(inv_var.shape)
-                print(logvar.shape)
-                exit()
-                """
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
                 state_loss = state_loss.mean(-1).mean(-1).sum()
 
-                #FIXME: add catastrophe loss
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(catastrophe_targ == 1)
                     if num_catastrophes == 0:
@@ -390,15 +318,6 @@ class MPC:
         elif isinstance(self.optimizer, DiscreteCEMOptimizer):
             # FIXME: this looks suspicious
             # This looks wrong, since it is not how it is originally initialized.
-            """
-            print('******')
-            print('before')
-            print(self.prev_sol)
-            self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
-            print('after')
-            print(self.prev_sol)
-            exit()
-            """
             # self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
             # self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
             self.prev_sol = np.ones(shape = [self.plan_hor, self.env.action_space.n]) * (1 / self.env.action_space.n)
@@ -421,13 +340,11 @@ class MPC:
         # FIXME: sanity check that possible_actions is set
         # print(self.possible_actions)
 
-        print(self.optimizer)
-
         d_random = isinstance(self.optimizer, DiscreteRandomOptimizer)
         d_cem = isinstance(self.optimizer, DiscreteCEMOptimizer)
         cem = isinstance(self.optimizer, CEMOptimizer)
         if d_random or d_cem:
-            print('***** Using a discrete optimizer')
+            # print('***** Using a discrete optimizer')
             if not self.has_been_trained:
                 # print(self.possible_actions)
                 # print(self.possible_actions.shape)
@@ -447,19 +364,12 @@ class MPC:
             # (Resolved) What is soln here?
             # It is an ndarray of shape (?, 25, 5)
             # with 5 being the probability of actions
-            print('prev_sol')
-            print(self.prev_sol)
             soln = self.optimizer.obtain_solution(self.prev_sol, self.possible_actions)
-            print('soln')
-            print(soln)
 
             if d_random:
                 self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
                 self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
             elif d_cem:
-                print(np.copy(soln)[1:].shape)
-                print(np.copy(soln)[self.per * self.dU:].shape)
-                print(np.zeros((1, self.per * self.dU)).shape)
 
                 # (Resolved) I don't understand what this concat is doing.
                 # After we are done with the current action, we pop it
@@ -472,13 +382,11 @@ class MPC:
                 # with max probability.
                 # self.ac_buf = soln[:1].reshape(-1, self.dU)
                 self.ac_buf = self.env.possible_actions[np.argmax(soln[:1])]
-                print('ac_buf')
-                print(self.ac_buf)
 
             return self.act(obs, t)
 
         else:
-            print('***** Using a continuous optimizer')
+            # print('***** Using a continuous optimizer')
             if not self.has_been_trained:
                 return np.random.uniform(self.ac_lb, self.ac_ub, self.ac_lb.shape)
             if self.ac_buf.shape[0] > 0:
@@ -487,9 +395,6 @@ class MPC:
 
             self.sy_cur_obs = obs
 
-            print('prev_sol')
-            print(self.prev_sol)
-            exit()
             soln = self.optimizer.obtain_solution(self.prev_sol, self.init_var)
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
@@ -571,15 +476,8 @@ class MPC:
         mean, var, catastrophe_prob = self.model(inputs)
 
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
-        # print(predictions.shape)
 
         predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
-        """
-        print(mean.shape)
-        print(predictions.shape)
-        print(catastrophe_prob.shape)
-        exit()
-        """
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
 

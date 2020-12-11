@@ -385,7 +385,7 @@ class PointmassEnv(gym.Env):
     return self._normalize_obs(self.state.copy())
 
   def set_logdir(self, path):
-    self.traj_filepath = path + 'last_traj.png'
+    self.traj_filepath = path + '/'
     
   def _get_distance(self, obs, goal):
     """Compute the shortest path distance.
@@ -451,24 +451,10 @@ class PointmassEnv(gym.Env):
     return (self._walls[i, j] == 1)
 
   def get_dist_and_reward(self, state):
-    """
-    print('=====')
-    print(state)
-    """
     if (isinstance(state, torch.Tensor)):
         state = state.detach().numpy()
-    """
-    print(type(state))
-    print(state.shape)
-    print(type(self.fixed_goal))
-    print(self.fixed_goal.shape)
-    print(self.fixed_goal)
-    print(state - self.fixed_goal)
-    """
     dist = np.linalg.norm(state - self.fixed_goal, axis=(state.ndim-1))
-    """
-    print(dist.shape)
-    """
+
     # In CARL, we want sparse reward
     # dense_reward defaults to True
     if self.dense_reward:
@@ -510,15 +496,6 @@ class PointmassEnv(gym.Env):
     # keep it intact
     self.obs_vec.append(normalized_obs.copy())
     
-    """
-    # In CARL, we want sparse reward
-    # dense_reward defaults to True
-    if self.dense_reward:
-        reward = -dist
-    else:
-        reward = int(dist < self.epsilon) - 1
-    """
-
     # Add random env variable and default catastrophe 0
     # Some potential choices for random env variable:
     # 1. action_noise (currently in use, see _get_obs())
@@ -623,7 +600,7 @@ class PointmassEnv(gym.Env):
     self.plt.scatter([goal[0]], [goal[1]], marker='*',
                 color='green', s=200, label='goal')
     self.plt.legend(loc='upper left')
-    self.plt.savefig(self.traj_filepath)
+    self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
 
   def get_last_trajectory(self):
     return self.last_trajectory
@@ -665,50 +642,4 @@ def refresh_path():
   path['terminals'] = []
   path['rewards'] = []
   return path
-
-if __name__ == '__main__':
-  env = Pointmass(difficulty=0, dense_reward=False)
-  num_samples = 50000
-  total_samples = 0
-  path = refresh_path()
-  all_paths = []
-  num_positive_rewards = 0
-  
-  while total_samples < num_samples:
-    path = refresh_path()
-    start_state = env._sample_empty_state()
-    bern = (np.random.rand() > 0.5)
-    if bern:
-      goal_state = env._sample_empty_state()
-    else:
-      goal_state = env.fixed_goal
-
-    print ('Start: ', start_state, ' Goal state: ', goal_state, total_samples)
-    # curr_state = start_state
-    curr_state = env.reset(start_state)
-    done = False
-    for i in range(env.max_episode_steps):
-      action = env.get_optimal_action(goal_state)
-      temp_bern = (np.random.rand() < 0.2)
-      if temp_bern:
-        action = np.random.randint(5)
-      
-      next_state, reward, done, _ = env.step(action)
-      if reward >= 0:
-        num_positive_rewards += 1
-      path['observations'].append(curr_state)
-      path['actions'].append(action)
-      path['next_observations'].append(next_state)
-      path['terminals'].append(done)
-      path['rewards'].append(reward)
-
-      if done == True:
-        total_samples += i
-        break
-
-    all_paths.append(path)
-    print ('Num Positive Rewards: ', num_positive_rewards)
-
-  with open('buffer_debug_final' + str(env.difficulty) +'.pkl', 'wb') as f:
-    pickle.dump(all_paths, f)
 

@@ -47,8 +47,6 @@ class PointmassMediumConfigModule:
     def obs_preproc(obs):
         # ..., action_noise, catastrophe
         # The function simply removes the action_noise
-        # print(obs)
-        # print(obs.shape)
         assert obs.shape[-1] == 4
         if isinstance(obs, np.ndarray):
             return obs[..., :-2]
@@ -104,43 +102,8 @@ class PointmassMediumConfigModule:
 
     @staticmethod
     def catastrophe_cost_fn(obs, cost, percentile):
-        """
-        print('***** obs')
-        print(obs.shape)
-        print(obs)
-        print('***** cost')
-        print(cost)
-        print('***** percentile')
-        print(percentile)
-        """
         catastrophe_mask = obs[..., -1] > percentile / 100
-        
-        """
-        print('***** catastroophe mask')
-        print(catastrophe_mask)
-        print('***** obs[..., -1]')
-        print(obs[..., -1])
-        for i in obs[..., -1]:
-            if i > 0:
-                print(i)
-        """
-
-        """
-        print(type(catastrophe_mask))
-        print(catastrophe_mask.shape)
-        print(type(cost))
-        print(cost.shape)
-        """
-        print('before catas mask')
-        print(cost)
         cost[catastrophe_mask] += CONFIG_MODULE.CATASTROPHE_COST
-        print(cost)
-        """
-        print('***** cost[catastrophe_mas]')
-        print(cost[catastrophe_mask])
-        # exit()
-        """
-
         return cost
 
 CONFIG_MODULE = PointmassMediumConfigModule
