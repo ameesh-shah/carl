@@ -91,7 +91,7 @@ class MBExperiment:
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
             strftime("%Y-%m-%d--%H-%M-%S", localtime()),
-            params.log_cfg.get("expname", "") + strftime("%Y-%m-%d--%H:%M:%S", localtime())
+            strftime("%Y-%m-%d--%H:%M:%S", localtime())
 
         )
         print("Logging to: ", self.logdir)

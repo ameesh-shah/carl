@@ -63,7 +63,7 @@ def create_config(args):
 
     # cfg_module by here is an instance of <env>ConfigModule
 
-    _create_exp_config(cfg.exp_cfg, cfg_module, args.expname, type_map, args)
+    _create_exp_config(cfg.exp_cfg, cfg_module, type_map, args)
     cfg.exp_cfg.sim_cfg.test_percentile = args.test_percentile
     cfg.exp_cfg.sim_cfg.record_video = args.record_video
 
@@ -73,10 +73,9 @@ def create_config(args):
     return cfg
 
 
-def _create_exp_config(exp_cfg, cfg_module,  expname, type_map, args):
+def _create_exp_config(exp_cfg, cfg_module, type_map, args):
     exp_cfg.sim_cfg.env = cfg_module.ENV
     exp_cfg.sim_cfg.task_hor = cfg_module.TASK_HORIZON
-    exp_cfg.exp_cfg.nexplore_iters = cfg_module.NEXPLORE_ITERS
     exp_cfg.exp_cfg.ntrain_iters = args.ntrain_iters if args.ntrain_iters is not None else cfg_module.NTRAIN_ITERS
     exp_cfg.exp_cfg.nadapt_iters = args.nadapt_iters
     exp_cfg.exp_cfg.nrollouts_per_iter = cfg_module.NROLLOUTS_PER_ITER
@@ -86,7 +85,7 @@ def _create_exp_config(exp_cfg, cfg_module,  expname, type_map, args):
     exp_cfg.exp_cfg.load_model_dir = args.load_model_dir
     exp_cfg.exp_cfg.start_epoch = args.start_epoch
     exp_cfg.exp_cfg.test_domain = args.test_domain
-    exp_cfg.log_cfg.expname = expname
+    #exp_cfg.log_cfg.expname = expname ##add this back at some point??
     exp_cfg.log_cfg.logdir = args.logdir
     exp_cfg.log_cfg.suffix = args.suffix
     exp_cfg.log_cfg.nitr_per_rollout = args.nitr_per_rollout
