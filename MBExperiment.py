@@ -18,6 +18,8 @@ import numpy as np
 from gym import wrappers
 import torch
 
+from env.pointmass import PointmassEnv
+
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
@@ -90,6 +92,11 @@ class MBExperiment:
         if self.suffix is not None:
             self.logdir = self.logdir + '-' + self.suffix
         self.writer = SummaryWriter(self.logdir + '-tboard')
+
+	# Set env for PointmassEnv 
+        if (isinstance(self.env, PointmassEnv)):
+	    # set logdir for Pointmass
+            self.env.set_logdir(self.logdir)
 
         self.record_video = params.sim_cfg.get("record_video", False)
         if self.test_domain is not None:

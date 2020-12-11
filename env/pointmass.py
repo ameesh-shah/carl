@@ -339,6 +339,7 @@ class PointmassEnv(gym.Env):
     self.num_actions = 5
     self.epsilon = resize_factor
     self.action_noise = action_noise
+    self.test_action_noise = 0.2 # FIXME: make it passed in from outside.
     
     self.obs_vec = []
     self.wall_hits = 0
@@ -352,21 +353,30 @@ class PointmassEnv(gym.Env):
     np.random.seed(seed)
 
   def reset(self, mode='train', seed=None):
-      
-      # FIXME: Change the room configuration in 'train' mode.
-      # In 'test' mode, use a fixed configuration.
 
-      if seed: self.seed(seed)
+      if seed: 
+          self.seed(seed)
 
       if len(self.obs_vec) > 0:
           self.last_trajectory = self.plot_trajectory()
 
+      if mode == 'train':
+          self.action_noise = np.random.uniform(low=0.0, high=1.0) 
+          print('Resetting the environment. action_noise: ' + str(self.action_noise))
+      elif mode == 'test':
+          self.action_noise = self.test_action_noise
+      else:
+          raise ValueError('Unrecognized mode: ' + mode)
+
       self.plt.clf()
       self.timesteps_left = self.max_episode_steps
 
-      self.obs_vec = [self._normalize_obs(self.fixed_start.copy())]
+      # FIXME: is it here?
+      self.obs_vec = [self._get_obs(self._normalize_obs(self.fixed_start.copy()))]
       self.state = self.fixed_start.copy()
       self.num_runs += 1
+      self.wall_hits = 0
+
       return self._get_obs(self._normalize_obs(self.state.copy()))
 
   def reset_model(self, seed=None):
@@ -379,9 +389,10 @@ class PointmassEnv(gym.Env):
     self.timesteps_left = self.max_episode_steps
     
     self.obs_vec = [self._normalize_obs(self.fixed_start.copy())]
-    self.wall_hits = 0
     self.state = self.fixed_start.copy()
     self.num_runs += 1
+    self.wall_hits = 0
+
     return self._normalize_obs(self.state.copy())
 
   def set_logdir(self, path):
@@ -395,6 +406,7 @@ class PointmassEnv(gym.Env):
     (i2, j2) = self._discretize_state(goal.copy())
     return self._apsp[i1, j1, i2, j2]
 
+  """
   def simulate_step(self, state, action):
     num_substeps = 10
     dt = 1.0 / num_substeps
@@ -407,6 +419,21 @@ class PointmassEnv(gym.Env):
         if not self._is_blocked(new_state):
           state = new_state
     return state
+  """
+
+  def simulate_step(self, state, action):
+    num_substeps = 2
+    dt = 1 / num_substeps
+    num_axis = len(action)
+    for _ in np.linspace(0, 1, num_substeps):
+      for axis in range(num_axis):
+        new_state = state.copy()
+        new_state[axis] += dt * action[axis]
+
+        if not self._is_blocked(new_state):
+          state = new_state
+    return state
+    
 
   def get_optimal_action(self, state):
     state = self._unnormalize_obs(state)
@@ -492,10 +519,6 @@ class PointmassEnv(gym.Env):
     # Normalized original obs
     normalized_obs = self._normalize_obs(self.state.copy())
 
-    # obs_vec is used for plotting trajectories.
-    # keep it intact
-    self.obs_vec.append(normalized_obs.copy())
-    
     # Add random env variable and default catastrophe 0
     # Some potential choices for random env variable:
     # 1. action_noise (currently in use, see _get_obs())
@@ -513,6 +536,9 @@ class PointmassEnv(gym.Env):
 
     # log the number of times the agent has hit the wall
     info['Wall_hits_so_far'] = self.wall_hits
+
+    # obs_vec is used for plotting trajectories.
+    self.obs_vec.append(extended_obs.copy())
 
     return extended_obs, reward, done, info
 
@@ -599,7 +625,20 @@ class PointmassEnv(gym.Env):
                 color='green', s=200, label='end')
     self.plt.scatter([goal[0]], [goal[1]], marker='*',
                 color='green', s=200, label='goal')
-    self.plt.legend(loc='upper left')
+   
+    # Draw catastrophe states
+    catastrophic_states = []
+    for e in obs_vec:
+        if e[-1] != 0:
+            catastrophic_states.append(e)
+    catastrophic_states = np.array(catastrophic_states)
+    if (catastrophic_states.shape[0] > 0):
+        self.plt.scatter([catastrophic_states[:, 0]], [catastrophic_states[:, 1]], marker='x', color='red', s=200, label='catastrophe')
+
+    # Create empty plot with blank marker containing the extra label
+    self.plt.plot([], [], ' ', label="# of wall hits: " + str(self.wall_hits))
+
+    self.plt.legend('upper right')
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
 
   def get_last_trajectory(self):

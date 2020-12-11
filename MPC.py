@@ -337,21 +337,16 @@ class MPC:
 
         Returns: An action (and possibly the predicted cost)
         """
-        # FIXME: sanity check that possible_actions is set
-        # print(self.possible_actions)
-
         d_random = isinstance(self.optimizer, DiscreteRandomOptimizer)
         d_cem = isinstance(self.optimizer, DiscreteCEMOptimizer)
         cem = isinstance(self.optimizer, CEMOptimizer)
         if d_random or d_cem:
             # print('***** Using a discrete optimizer')
             if not self.has_been_trained:
-                # print(self.possible_actions)
-                # print(self.possible_actions.shape)
-
-                # FIXME: original code, below, is wrong about arange part. 
+                # (Resolved): original code, below, is wrong about arange part. 
                 # Should select the first element of the shape instead of the last.
                 # return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[-1]), size=1)[0]]
+                print('Has not been trained. Performing random actions.')
                 return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[0]), size=1)[0]]
 
             if self.ac_buf.shape[0] > 0:

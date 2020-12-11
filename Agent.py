@@ -45,7 +45,7 @@ class Agent:
         print("Average action selection time: ", np.mean(times))
         print("Rollout length: ", len(A))
 
-        # (resolved) FIXME: a rather strange bug. In Pointmass env, np.array(O)
+        # (resolved) a rather strange bug. In Pointmass env, np.array(O)
         # returns an ndarray of shape (151,), i.e. ndim=1. But in cartpole, the same
         # code returns an ndarray of shape (201, 6), i.e. ndim=2.
         # 

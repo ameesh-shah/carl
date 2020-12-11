@@ -42,7 +42,6 @@ def main(args):
 
     # Set env for PointmassEnv 
     if (isinstance(cfg.ctrl_cfg.env, PointmassEnv)):
-        cfg.ctrl_cfg.env.set_logdir(cfg.exp_cfg.log_cfg.logdir)
         # Change optimizer to discrete CEM
         cfg.ctrl_cfg.opt_cfg.mode = 'DCEM'
 
