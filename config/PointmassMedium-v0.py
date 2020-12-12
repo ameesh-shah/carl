@@ -18,7 +18,7 @@ class PointmassMediumConfigModule:
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 25
-    MODEL_IN, MODEL_OUT = 4, 3 # In; (x, y, ac_x, ac_y), Out: (x, y, prob)
+    MODEL_IN, MODEL_OUT = 4, 2 # In; (x, y, ac_x, ac_y), Out: (x, y)
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
     CATASTROPHE_COST = 10000
@@ -62,20 +62,23 @@ class PointmassMediumConfigModule:
     # 
     # The function prepares a next state from model prediction.
     # Some processing steps have been done in the body of _predict_next_obs,
-    # here we just apply a sigmoid function to the catastrophe_prob
+    # here we just apply a sigmoid function to the catastrophe_prob.
+    # Also insert the current action_noise (obtained from obs) at index 2.
     @staticmethod
     def obs_postproc(obs, pred):
-        return torch.cat((pred[..., :-1], CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1) 
+        return torch.cat((pred[..., :-1], obs[..., 2:3], CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1) 
 
     # This function prepares ground truth next states and catastrophe prob.
     # In MPC, we see "self.targ_proc(obs[:-1], obs[1:])" being used. 
-    # FIXME: double check that the target should be 
-    # batch * [next_x, next_y, catastrophe_prob]
+    # 
+    # Target processing is the same as pre-processing, just pruning away
+    # the last two elements (x, y, __action_noise__, __catastrophe__)
     @staticmethod
     def targ_proc(obs, next_obs):
-        return next_obs
+        ret = next_obs[..., :-2]
+        return ret
 
-    # FIXME: instead of using this, use reward from step().
+    # Instead of using this, use reward from step().
     @staticmethod
     def obs_cost_fn(obs):
         return 0

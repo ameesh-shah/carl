@@ -288,7 +288,7 @@ class PointmassEnv(gym.Env):
       walls = 'Maze5x5'
       resize_factor = 2
       self.fixed_start = np.array([0.5, 0.5]) * resize_factor
-      self.fixed_goal = np.array([4.5, 4.5]) * resize_factor
+      self.fixed_goal = np.array([0.5, 4.5]) * resize_factor
       self.max_episode_steps = 50
     elif difficulty == 1:
       walls = 'Maze6x6'
@@ -471,10 +471,13 @@ class PointmassEnv(gym.Env):
   def get_dist_and_reward(self, state):
     if (isinstance(state, torch.Tensor)):
         state = state.detach().numpy()
+    # print('State: ' + str(state))
+    # print('Goal: ' + str(self.fixed_goal))
     dist = np.linalg.norm(state - self.fixed_goal, axis=(state.ndim-1))
+    # print('Dist: ' + str(dist))
 
     # In CARL, we want sparse reward
-    # dense_reward defaults to True
+    # dense_reward defaults to False
     if self.dense_reward:
         reward = -dist
     else:
@@ -617,20 +620,35 @@ class PointmassEnv(gym.Env):
                 color='green', s=200, label='end')
     self.plt.scatter([goal[0]], [goal[1]], marker='*',
                 color='green', s=200, label='goal')
-   
+
+    # Draw a rewarded states for sparse rewards
     # Draw catastrophe states
     catastrophic_states = []
+    rewarding_states = []
     for e in obs_vec:
         if e[-1] != 0:
             catastrophic_states.append(e)
+        if not self.dense_reward:
+            d, re = self.get_dist_and_reward(e[:2])
+            print(d)
+            if re >= 0:
+                rewarding_states.append(e)
+    
     catastrophic_states = np.array(catastrophic_states)
-    if (catastrophic_states.shape[0] > 0):
+    rewarding_states = np.array(rewarding_states)
+
+    print(rewarding_states)
+
+    if catastrophic_states.shape[0] > 0:
         self.plt.scatter([catastrophic_states[:, 0]], [catastrophic_states[:, 1]], marker='x', color='red', s=200, label='catastrophe')
+
+    if not self.dense_reward and rewarding_states.shape[0] > 0:
+        self.plt.scatter([rewarding_states[:, 0]], [rewarding_states[:, 1]], marker='o', color='green', s=200)
 
     # Create empty plot with blank marker containing the extra label
     self.plt.plot([], [], ' ', label="# of wall hits: " + str(self.wall_hits))
 
-    self.plt.legend(loc='upper right')
+    self.plt.legend()
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
 
   def plot_density_graph(self):

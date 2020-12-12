@@ -16,6 +16,12 @@ register(
 )
 
 register(
+    id='PointmassEasy-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 0}
+)
+
+register(
     id='PointmassMedium-v0',
     entry_point='env.pointmass:PointmassEnv',
     kwargs={'difficulty': 1}

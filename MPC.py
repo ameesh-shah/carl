@@ -219,6 +219,10 @@ class MPC:
             temp = np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1)
             new_train_in.append(temp)
             new_train_targs.append(self.targ_proc(obs[:-1], obs[1:]))
+        
+        # print('train_in and train_targs')
+        # print(new_train_in)
+        # print(new_train_targs)
 
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
 
@@ -414,14 +418,20 @@ class MPC:
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(nopt * self.npart, -1)
         costs = torch.zeros(nopt, self.npart, device=TORCH_DEVICE)
-        for t in range(self.plan_hor):
+        for t in trange(self.plan_hor):
             cur_acs = ac_seqs[t]
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
 
-            # We should use the reward in Pointmass
-            # FIXME: check whether rewards match the actions
+            # FIXME: for trajectories that reach the goal and
+            # terminate early, they are not rewarded for that.
+            # For sparse reward, this is worse because the good
+            # and the bad trajectories are zeros.
+            # FIXME: can we set boundaries during planning as well?
+            # This is used to prevent predicted states from going
+            # out of bounds. If it is out of bound, fix the mean
+            # on the boundary and reset std to 0.
             if (isinstance(self.env, PointmassEnv)):
-                _, reward = self.env.get_dist_and_reward(next_obs[..., :-2])
+                _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
                 # The cost should mostly be ones, since
                 # the reward is sparse.
                 cost = -1 * reward + self.ac_cost_fn(cur_acs)
@@ -429,17 +439,17 @@ class MPC:
             else:
                 cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
-            # FIXME: one difference between CARL and this work is that
+            # One difference between CARL and this work is that
             # during the exploration phase of this work, the agent is aware of safety
             # during exploration, instead of just at test time.
             # if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
                 # cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
-
             cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
 
             cost = cost.view(-1, self.npart)
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)
+
         # replace nan with high cost
         costs[costs != costs] = 1e6
         if self.no_catastrophe_pred:
@@ -459,24 +469,52 @@ class MPC:
             mean_cost = costs.mean(dim=1)
         return mean_cost.detach().cpu().numpy()
 
+    # FIXME: predicts non-sensical states
     def _predict_next_obs(self, obs, acs):
+        """
+        print('===== Inside predict next obs ======')
+        print('obs: ' + str(obs))
+        print('acs: ' + str(acs))
+        """
         proc_obs = self.obs_preproc(obs)
+        """
+        print('proc_obs: ' + str(proc_obs))
+        print(proc_obs.shape)
+        """
 
+        # Can the tensor format screws things up?
         assert self.prop_mode == 'TSinf'
         proc_obs = self._expand_to_ts_format(proc_obs)
+
+        """
+        print('TS proc_obs: ' + str(proc_obs))
+        print(proc_obs.shape)
+        """
         acs = self._expand_to_ts_format(acs)
 
         inputs = torch.cat((proc_obs, acs), dim=-1)
 
+        # FIXME: Why does the mean have 3 values?
         mean, var, catastrophe_prob = self.model(inputs)
-
+        """
+        print('predicted mean: ' + str(mean))
+        print(mean.shape)
+        print('predicted var: ' + str(var))
+        print('predicted catastrophe prob: ' + str(catastrophe_prob))
+        """
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
+        # print('predictions: ' + str(predictions))
 
         predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
+        # print('predictions: ' + str(predictions))
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
+        # print('predictions: ' + str(predictions))
 
-        return self.obs_postproc(obs, predictions)
+        post = self.obs_postproc(obs, predictions)
+        # print('post: ' + str(post))
+
+        return post
 
 
     def _expand_to_ts_format(self, mat):
