@@ -81,6 +81,8 @@ class MBExperiment:
         
         self.training_percentile = self.policy.percentile
 
+        self.use_unsafe_pretraining = params.exp_cfg.get("use_unsafe_pretraining", False)
+
         if self.continue_train:
             self.logdir = params.exp_cfg.load_model_dir
             self.policy.ac_buf = np.load(os.path.join(self.logdir, "ac_buf.npy"))
@@ -90,9 +92,7 @@ class MBExperiment:
             self.policy.train_targs = np.load(os.path.join(self.logdir, "train_targs.npy"))
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            strftime("%Y-%m-%d--%H-%M-%S", localtime()),
-            strftime("%Y-%m-%d--%H:%M:%S", localtime())
-
+            f"{params.log_cfg.get("expname", "")}_{strftime("%Y-%m-%d--%H-%M-%S", localtime())}",
         )
         print("Logging to: ", self.logdir)
         self.suffix = params.log_cfg.get("suffix", None)
@@ -131,7 +131,8 @@ class MBExperiment:
                 [sample["rewards"] for sample in samples],
             )
 
-        self.run_training_iters(adaptation=False)
+        self.run_training_iters(adaptation=False, unsafe_pretraining=self.use_unsafe_pretraining)
+        self.run_training_iters(adaptation=False, unsafe_pretraining=False)
 
         # Save training buffers at end of training so we can load for adaptation if required
         old_train_in = self.policy.train_in
@@ -147,10 +148,11 @@ class MBExperiment:
         np.save(os.path.join(self.logdir, "train_in.npy"), old_train_in)
         np.save(os.path.join(self.logdir, "train_targs.npy"), old_train_targs)
         
-        self.run_training_iters(adaptation=True)
+        self.run_training_iters(adaptation=True, unsafe_pretraining=False)
         self.run_test_evals(self.nadapt_iters)
 
-    def run_training_iters(self, adaptation):
+    def run_training_iters(self, adaptation, unsafe_pretraining):
+        assert not (adaptation and unsafe_pretraining), "can't have unsafe pretraining at adaptation time"
         max_return = -float("inf")
         if adaptation:
             iteration_range = [self.nadapt_iters]
@@ -164,7 +166,7 @@ class MBExperiment:
             if i % 2 == 0 and adaptation:
                 self.run_test_evals(i)
             print("####################################################################")
-            print("Starting training on " + print_str + " env iteration %d" % (i + 1))
+            print(f"Starting training on {print_str}, {'UNSAFE' if unsafe_pretraining else ''} env iteration {i+1}")
 
             samples = []
             self.policy.clear_stats()
@@ -177,7 +179,7 @@ class MBExperiment:
                 samples.append(
                     self.agent.sample(
                         self.task_hor, self.policy, record=self.record_video and adaptation,
-                        env=self.env, mode='test' if adaptation else 'train',
+                        env=self.env, mode='test' if adaptation else 'train', unsafe_pretraining=unsafe_pretraining
                     )
                 )
             if self.record_video:

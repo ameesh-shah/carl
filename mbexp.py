@@ -31,8 +31,7 @@ def set_global_seeds(seed):
 
 
 def main(args):
-    #set_global_seeds(0)
-
+    set_global_seeds(0)
 
     cfg = create_config(args)
     cfg.pprint()
@@ -42,6 +41,7 @@ def main(args):
         print("Using Pets-using-Pets Policy.")
         cfg.exp_cfg.exp_cfg.policy = ExploreEnsembleVarianceMPC(cfg.ctrl_cfg)
     elif args.ctrl_type == 'RND':
+        assert False, "JL: Not implemented fully yet!"
         print("Using RND Policy.")
         cfg.exp_cfg.exp_cfg.policy = RNDExploreMPC(cfg.ctrl_cfg)
     else:
@@ -102,9 +102,11 @@ if __name__ == "__main__":
                         help='suffix to attach to a run')
     parser.add_argument('--record_video', action='store_true',
                         help='whether to record the test rollouts')
-    parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what policy for pretraining we want to use." + \
-                                                                  "options so far are: MPC, PuP, RND")
-    #parser.add_argument('-expname', type=str, help='Name of experiment to organize logging dir.')
+    parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what intrinsic reward we want to use for pretraining. Using default MPC means we optimize directly for the reward with no intrinsic exploration bonus. \
+            options so far are: MPC, PuP, RND")
+    parser.add_argument('--use_unsafe_pretraining', action='store_true',
+                         help='Whether to use half the pretraining iterations to explore unsafe regions of the space.')
+    parser.add_argument('--expname', type=str, help='Name of experiment to organize logging dir.')
     args = parser.parse_args()
 
     #args.ctrl_type = "MPC"

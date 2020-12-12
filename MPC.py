@@ -566,6 +566,7 @@ class ExploreEnsembleVarianceMPC(MPC):
                 #   setting it lower results in more risk-averse planning (we avoid states if there is even a small prob of catastrophe)
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
             else if self.mode == 'train' and self.unsafe_pretraining:
+                print("Using unsafe pretraining reward")
                 catastrophe_prob = next_obs[..., -1]
                 cost = -(100 * catastrophe_prob) # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
             cost = cost.view(-1, self.npart)

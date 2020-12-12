@@ -14,7 +14,7 @@ class Agent:
     """An general class for RL agents.
     """
 
-    def sample(self, horizon, policy, record=False, env=None, mode='train'):
+    def sample(self, horizon, policy, record=False, env=None, mode='train', unsafe_pretraining=False):
         """Samples a rollout from the agent.
 
         Arguments:
@@ -28,6 +28,8 @@ class Agent:
         """
         times, rewards = [], []
         policy.mode = mode
+        policy.unsafe_pretraining = unsafe_pretraining
+        # env.reset selects a random environment with the train/test distribution
         O, A, reward_sum, done = [env.reset(mode=mode)], [], 0, False
         policy.reset()
         for t in trange(horizon):
