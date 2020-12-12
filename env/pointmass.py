@@ -341,6 +341,7 @@ class PointmassEnv(gym.Env):
     self.test_action_noise = 0.2 # FIXME: make it passed in from outside.
     
     self.obs_vec = []
+    self.replay_buffer = np.array([]).reshape((0, 4))
     self.wall_hits = 0
     self.last_trajectory = None
     self.difficulty = difficulty
@@ -370,7 +371,8 @@ class PointmassEnv(gym.Env):
       self.plt.clf()
       self.timesteps_left = self.max_episode_steps
 
-      # FIXME: is it here?
+      if len(self.obs_vec) != 0:
+        self.replay_buffer = np.concatenate([self.replay_buffer, self.obs_vec.copy()], axis=0)
       self.obs_vec = [self._get_obs(self._normalize_obs(self.fixed_start.copy()))]
       self.state = self.fixed_start.copy()
       self.num_runs += 1
@@ -387,6 +389,7 @@ class PointmassEnv(gym.Env):
     self.plt.clf()
     self.timesteps_left = self.max_episode_steps
     
+    self.replay_buffer = np.concatenate([self.replay_buffer, np.array(self.obs_vec.copy())], axis=0)
     self.obs_vec = [self._normalize_obs(self.fixed_start.copy())]
     self.state = self.fixed_start.copy()
     self.num_runs += 1
@@ -408,7 +411,7 @@ class PointmassEnv(gym.Env):
 
   def simulate_step(self, state, action):
     num_substeps = 1
-    dt = 0.5 / num_substeps
+    dt = 1 / num_substeps
     num_axis = len(action)
     for _ in np.linspace(0, 1, num_substeps):
       for axis in range(num_axis):
@@ -453,6 +456,9 @@ class PointmassEnv(gym.Env):
       obs[0] * float(self._height),
       obs[1] * float(self._width)
     ])
+
+  def _normalize_ac(self, ac):
+    return ac / np.linalg.norm(ac)
   
   def _is_blocked(self, state):
     # Check if the state is out of bound
@@ -479,6 +485,7 @@ class PointmassEnv(gym.Env):
   def step(self, action):
     self.timesteps_left -= 1
     action = np.random.normal(action, self.action_noise)
+    action = self._normalize_ac(action)
     next_state = self.simulate_step(self.state, action)
 
     # If simulate_step returns the same state as the input state,
@@ -489,8 +496,6 @@ class PointmassEnv(gym.Env):
     # We also count the number of time the agent runs into the wall.
     # A trained agent should minimize the number of times hitting the wall.
     if np.array_equal(next_state, self.state):
-        # print("hitting the wall!")
-        # exit() # sanity check
         catastrophe = True
     else:
         catastrophe = False
@@ -531,6 +536,8 @@ class PointmassEnv(gym.Env):
       self.timesteps_left -= 1
       action = np.array(ACT_DICT[action])
       action = np.random.normal(action, self.action_noise)
+      action = self._normalize_ac(action)
+
       new_state = self.simulate_step(self.state, action)
 
       dist = np.linalg.norm(self.state - self.fixed_goal)
@@ -625,6 +632,14 @@ class PointmassEnv(gym.Env):
 
     self.plt.legend(loc='upper right')
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
+
+  def plot_density_graph(self):
+    self.plt.clf()
+    H, xedges, yedges = np.histogram2d(self.replay_buffer[:,0], self.replay_buffer[:,1], range=[[0., 1.], [0., 1.]], density=True)
+    self.plt.imshow(np.rot90(H), interpolation='bicubic')
+    self.plt.colorbar()
+    self.plt.title('State Density')
+    self.fig.savefig(self.traj_filepath + 'density' + '.png', bbox_inches='tight')
 
   def get_last_trajectory(self):
     return self.last_trajectory

@@ -11,8 +11,8 @@ import torch
 
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-class PointmassMediumConfigModule:
-    ENV_NAME = "PointmassMedium-v0"
+class PointmassEasyConfigModule:
+    ENV_NAME = "PointmassEasy-v0"
     TASK_HORIZON = 150
     NTRAIN_ITERS = 50
     NROLLOUTS_PER_ITER = 1
@@ -109,4 +109,4 @@ class PointmassMediumConfigModule:
         cost[catastrophe_mask] += CONFIG_MODULE.CATASTROPHE_COST
         return cost
 
-CONFIG_MODULE = PointmassMediumConfigModule
+CONFIG_MODULE = PointmassEasyConfigModule
