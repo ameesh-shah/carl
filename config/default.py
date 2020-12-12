@@ -95,7 +95,7 @@ def _create_ctrl_config(ctrl_cfg, cfg_module, ctrl_type, ctrl_args, type_map, ha
     """Creates controller configuration.
 
     """
-    assert ctrl_type == 'MPC'
+    #assert ctrl_type == 'MPC'
 
     ctrl_cfg.env = cfg_module.ENV
     if hasattr(cfg_module, "UPDATE_FNS"):

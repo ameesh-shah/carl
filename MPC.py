@@ -424,15 +424,16 @@ class ExploreEnsembleVarianceMPC(MPC):
         proc_obs = self.obs_preproc(obs)
 
         assert self.prop_mode == 'TSinf'
-
         proc_obs = self._expand_to_ts_format(proc_obs)
         acs = self._expand_to_ts_format(acs)
 
         inputs = torch.cat((proc_obs, acs), dim=-1)
 
-        mean, var = self.model(inputs)
+        mean, var, catastrophe_prob = self.model(inputs)
 
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
+
+        predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
 
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
@@ -441,6 +442,7 @@ class ExploreEnsembleVarianceMPC(MPC):
             return self.obs_postproc(obs, predictions), (mean, var)
 
         return self.obs_postproc(obs, predictions)
+
 
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
