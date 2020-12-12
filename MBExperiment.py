@@ -81,7 +81,7 @@ class MBExperiment:
         
         self.training_percentile = self.policy.percentile
 
-        self.frac_unsafe_pretraining = params.exp_cfg.get("frac_unsafe_pretraining", False)
+        self.frac_unsafe_pretraining = params.exp_cfg.get("frac_unsafe_pretraining", 0)
 
         if self.continue_train:
             self.logdir = params.exp_cfg.load_model_dir
@@ -147,7 +147,7 @@ class MBExperiment:
         np.save(os.path.join(self.logdir, "train_in.npy"), old_train_in)
         np.save(os.path.join(self.logdir, "train_targs.npy"), old_train_targs)
         
-        self.run_training_iters(adaptation=True, unsafe_pretraining=False)
+        self.run_training_iters(adaptation=True)
         self.run_test_evals(self.nadapt_iters)
 
     def run_training_iters(self, adaptation):
@@ -166,9 +166,6 @@ class MBExperiment:
             if i % 2 == 0 and adaptation:
                 self.run_test_evals(i)
             
-            print("####################################################################")
-            print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
-
             samples = []
             self.policy.clear_stats()
             self.policy.percentile = percentile
@@ -176,6 +173,9 @@ class MBExperiment:
             # Unsafe pretraining for first `frac_unsafe_pretraining` proportion of ntrain_iters
             if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters:
                 self.policy.unsafe_pretraining = False 
+
+            print("####################################################################")
+            print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
 
             for j in range(max(self.nrollout_per_itr, self.nrollouts_per_iter)):
                 self.policy.percentile = percentile

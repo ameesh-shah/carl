@@ -9,7 +9,9 @@ import pprint
 from dotmap import DotMap
 
 from MBExperiment import MBExperiment
-from MPC import MPC, RNDExploreMPC, ExploreEnsembleVarianceMPC
+from MPC import MPC
+from explore_ensemble_variance_mpc import ExploreEnsembleVarianceMPC
+from explore_rnd_mpc import ExploreRNDMPC
 from config import create_config
 import env # We run this so that the env is registered
 
@@ -43,7 +45,7 @@ def main(args):
     elif args.ctrl_type == 'RND':
         assert False, "JL: Not implemented fully yet!"
         print("Using RND Policy.")
-        cfg.exp_cfg.exp_cfg.policy = RNDExploreMPC(cfg.ctrl_cfg)
+        cfg.exp_cfg.exp_cfg.policy = ExploreRNDMPC(cfg.ctrl_cfg)
     else:
         print("Using default MPC Policy.")
         cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
@@ -104,7 +106,7 @@ if __name__ == "__main__":
                         help='whether to record the test rollouts')
     parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what intrinsic reward we want to use for pretraining. Using default MPC means we optimize directly for the reward with no intrinsic exploration bonus. \
             options so far are: MPC, PuP, RND")
-    parser.add_argument('--frac_unsafe_pretraining', type=float,
+    parser.add_argument('--frac_unsafe_pretraining', type=float, default=0,
                          help='Proportion ([0,1]) of pretraining iterations to use to explore unsafe regions of the space.')
     parser.add_argument('--expname', type=str, help='Name of experiment to organize logging dir.')
     args = parser.parse_args()
