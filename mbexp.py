@@ -104,8 +104,8 @@ if __name__ == "__main__":
                         help='whether to record the test rollouts')
     parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what intrinsic reward we want to use for pretraining. Using default MPC means we optimize directly for the reward with no intrinsic exploration bonus. \
             options so far are: MPC, PuP, RND")
-    parser.add_argument('--use_unsafe_pretraining', action='store_true',
-                         help='Whether to use half the pretraining iterations to explore unsafe regions of the space.')
+    parser.add_argument('--frac_unsafe_pretraining', type-float,
+                         help='Proportion ([0,1]) of pretraining iterations to use to explore unsafe regions of the space.')
     parser.add_argument('--expname', type=str, help='Name of experiment to organize logging dir.')
     args = parser.parse_args()
 

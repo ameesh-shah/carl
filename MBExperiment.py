@@ -81,7 +81,7 @@ class MBExperiment:
         
         self.training_percentile = self.policy.percentile
 
-        self.use_unsafe_pretraining = params.exp_cfg.get("use_unsafe_pretraining", False)
+        self.frac_unsafe_pretraining = params.exp_cfg.get("frac_unsafe_pretraining", False)
 
         if self.continue_train:
             self.logdir = params.exp_cfg.load_model_dir
@@ -131,8 +131,7 @@ class MBExperiment:
                 [sample["rewards"] for sample in samples],
             )
 
-        self.run_training_iters(adaptation=False, unsafe_pretraining=self.use_unsafe_pretraining)
-        self.run_training_iters(adaptation=False, unsafe_pretraining=False)
+        self.run_training_iters(adaptation=False)
 
         # Save training buffers at end of training so we can load for adaptation if required
         old_train_in = self.policy.train_in
@@ -151,26 +150,33 @@ class MBExperiment:
         self.run_training_iters(adaptation=True, unsafe_pretraining=False)
         self.run_test_evals(self.nadapt_iters)
 
-    def run_training_iters(self, adaptation, unsafe_pretraining):
-        assert not (adaptation and unsafe_pretraining), "can't have unsafe pretraining at adaptation time"
+    def run_training_iters(self, adaptation):
         max_return = -float("inf")
         if adaptation:
             iteration_range = [self.nadapt_iters]
             percentile = self.test_percentile
+            self.policy.unsafe_pretraining = False
             print_str = "ADAPT"
         else:
             iteration_range = [self.start_epoch, self.ntrain_iters]
             percentile = self.training_percentile
+            self.policy.unsafe_pretraining = True # start off by default
             print_str = "TRAIN"
         for i in trange(*iteration_range):
             if i % 2 == 0 and adaptation:
                 self.run_test_evals(i)
+            
             print("####################################################################")
             print(f"Starting training on {print_str}, {'UNSAFE' if unsafe_pretraining else ''} env iteration {i+1}")
 
             samples = []
             self.policy.clear_stats()
             self.policy.percentile = percentile
+
+            # Unsafe pretraining for first `frac_unsafe_pretraining` proportion of ntrain_iters
+            if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters:
+                self.policy.unsafe_pretraining = False 
+
             for j in range(max(self.nrollout_per_itr, self.nrollouts_per_iter)):
                 self.policy.percentile = percentile
                 if self.record_video:
