@@ -326,6 +326,7 @@ class MPC:
             return self.act(obs, t)
 
 
+    # Base compile_cost
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
         nopt = ac_seqs.shape[0]
@@ -350,6 +351,7 @@ class MPC:
             if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
             cost = cost.view(-1, self.npart)
+            import pdb; pdb.set_trace()
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)
         # replace nan with high cost
@@ -468,13 +470,12 @@ class ExploreEnsembleVarianceMPC(MPC):
         cur_obs = torch.from_numpy(self.sy_cur_obs).float().to(TORCH_DEVICE)
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
-        import pdb; pdb.set_trace()
 
         intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
 
         # TODO: make weight on each a parameter
-        return (self._compile_cost_reward(ac_seqs) + self._compile_cost_intrinsic(ac_seqs)) / 2.0
+        return (intrinsic_cost + supervised_cost) / 2.0
 
     @torch.no_grad()
     def _compile_cost_intrinsic(self, ac_seqs, cur_obs):
@@ -518,7 +519,6 @@ class ExploreEnsembleVarianceMPC(MPC):
         assert obs_vars.shape[:-1] == (self.plan_hor, self.model.num_nets,
             (self.npart * self.optimizer.popsize) // self.model.num_nets)
         # obs_vars: (self.plan_hor, num_net, npart * popsize / num_nets, obs_shape) -> (-1, obs_shape)
-        print("obs vars: ", obs_vars.shape)
         env_dO = obs_vars.shape[-1]
         obs_vars = obs_vars.view(-1, env_dO)
         # w_base: (obs_shape,)
@@ -553,8 +553,7 @@ class ExploreEnsembleVarianceMPC(MPC):
             cost (ndarray): 
 
         """
-        nopt = ac_seqs.shape[0]
-        costs = torch.zeros(nopt, self.npart, device=TORCH_DEVICE)
+        costs = torch.zeros(self.optimizer.popsize, self.npart, device=TORCH_DEVICE)
 
         for t in range(self.plan_hor):
             cur_acs = ac_seqs[t]
@@ -574,7 +573,6 @@ class ExploreEnsembleVarianceMPC(MPC):
                 #   setting it lower results in more risk-averse planning (we avoid states if there is even a small prob of catastrophe)
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
             elif self.mode == 'train' and self.unsafe_pretraining:
-                print("Using unsafe pretraining reward")
                 catastrophe_prob = next_obs[..., -1]
                 cost = -(100 * catastrophe_prob) # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
             cost = cost.view(-1, self.npart)
