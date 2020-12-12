@@ -92,7 +92,7 @@ class MBExperiment:
             self.policy.train_targs = np.load(os.path.join(self.logdir, "train_targs.npy"))
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            f"{params.log_cfg.get("expname", "")}_{strftime("%Y-%m-%d--%H-%M-%S", localtime())}",
+            f"{params.log_cfg.get('expname') or ''}_{strftime('%Y-%m-%d--%H-%M-%S', localtime())}",
         )
         print("Logging to: ", self.logdir)
         self.suffix = params.log_cfg.get("suffix", None)
@@ -167,7 +167,7 @@ class MBExperiment:
                 self.run_test_evals(i)
             
             print("####################################################################")
-            print(f"Starting training on {print_str}, {'UNSAFE' if unsafe_pretraining else ''} env iteration {i+1}")
+            print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
 
             samples = []
             self.policy.clear_stats()
@@ -185,7 +185,7 @@ class MBExperiment:
                 samples.append(
                     self.agent.sample(
                         self.task_hor, self.policy, record=self.record_video and adaptation,
-                        env=self.env, mode='test' if adaptation else 'train', unsafe_pretraining=unsafe_pretraining
+                        env=self.env, mode='test' if adaptation else 'train'
                     )
                 )
             if self.record_video:
