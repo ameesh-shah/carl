@@ -167,6 +167,7 @@ class MBExperiment:
             samples = []
             self.policy.clear_stats()
             self.policy.percentile = percentile
+            print(max(self.nrollout_per_itr, self.nrollouts_per_iter))
             for j in range(max(self.nrollout_per_itr, self.nrollouts_per_iter)):
                 self.policy.percentile = percentile
                 if self.record_video:
@@ -197,6 +198,7 @@ class MBExperiment:
                 [sample["ac"] for sample in samples],
                 [sample["rewards"] for sample in samples],
             )
+
             if self.policy.mse_loss is not None:
                 mean_loss = np.mean(self.policy.mse_loss)
                 self.writer.add_scalar('%s-mean-loss' % print_str,

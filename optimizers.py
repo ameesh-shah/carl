@@ -199,42 +199,28 @@ class DiscreteCEMOptimizer(Optimizer):
             # samples = samples.reshape(self.popsize, self.sol_dim)
             samples = samples.reshape(self.popsize, mean.shape[0], int(self.sol_dim / mean.shape[0]))
 
-
-            # FIXME: cost function calculation is wrong
             costs = self.cost_function(samples)
             elites = samples[np.argsort(costs)][:self.num_elites]
-            # print('elites: ')
-            # print(elites)
 
-            # FIXME: make this env-ignostic
-            # elites are concrete action samples. [0, -1], not [0.2, 0.2, 0.2, 0.2, 0.2]
-
-            pointmass = True
-            if pointmass: 
-                elites_prob = np.zeros((self.num_elites, *mean.shape))
-                for i in range(elites.shape[0]): # num_elites
-                    for j in range(elites.shape[1]): # plan_hor
-                        if np.array_equal(elites[i, j], np.array([0,0])):
-                            elites_prob[i, j, 0] = 1.0
-                        elif np.array_equal(elites[i, j], np.array([0,-1])):
-                            elites_prob[i, j, 1] = 1.0
-                        elif np.array_equal(elites[i, j], np.array([0,1])):
-                            elites_prob[i, j, 2] = 1.0
-                        elif np.array_equal(elites[i, j], np.array([-1,0])):
-                            elites_prob[i, j, 3] = 1.0
-                        elif np.array_equal(elites[i, j], np.array([1,0])):
-                            elites_prob[i, j, 4] = 1.0
-
-                # It is trying to do 2000 -> (40, 25, 5)
-                # elites = elites.reshape(self.num_elites, *mean.shape)
-                # But it should do 2000 -> (40, 25, 2)
-                # elites = elites.reshape(self.num_elites, mean.shape[0], int(self.sol_dim / mean.shape[0]))
-                new_mean = np.mean(elites_prob, axis=0)
-                # print(new_mean)
-                # print(new_mean.shape)
-                
-            else:
-                new_mean = np.mean(elites, axis=0)
+            # Cast actions to probabilities
+            # Elites are concrete action samples. [0, -1],
+            # not [0.2, 0.2, 0.2, 0.2, 0.2]
+            # FIXME: this code currently only works for Pointmass.
+            # Need to make it compatible with all discrete environments. 
+            elites_prob = np.zeros((self.num_elites, *mean.shape))
+            for i in range(elites.shape[0]): # num_elites
+                for j in range(elites.shape[1]): # plan_hor
+                    if np.array_equal(elites[i, j], np.array([0,0])):
+                        elites_prob[i, j, 0] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([0,-1])):
+                        elites_prob[i, j, 1] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([0,1])):
+                        elites_prob[i, j, 2] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([-1,0])):
+                        elites_prob[i, j, 3] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([1,0])):
+                        elites_prob[i, j, 4] = 1.0
+            new_mean = np.mean(elites_prob, axis=0)
 
             # Update mean with a constant alpha term
             mean = self.alpha * mean + (1 - self.alpha) * new_mean
