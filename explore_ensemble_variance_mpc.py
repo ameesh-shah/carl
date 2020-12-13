@@ -4,11 +4,13 @@ from __future__ import print_function
 
 from tqdm import trange
 
+import numpy as np
 import torch
 
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 from MPC import MPC
+from env.pointmass import PointmassEnv
 
 class ExploreEnsembleVarianceMPC(MPC):
 
@@ -162,7 +164,19 @@ class ExploreEnsembleVarianceMPC(MPC):
             # calculate variance over all bootstraps
             next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
             # cost shape: (npart * pop_size, obs_shape)
-            cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
+            # Reward calculation but do special treatment for PointmassEnv
+            if (isinstance(self.env, PointmassEnv)):
+                # print(next_obs)
+                _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
+                # print(reward)
+                # print(reward.shape)
+                # The cost should mostly be ones, if the reward is sparse.
+                cost = -1 * np.sum(reward) + self.ac_cost_fn(cur_acs)
+                cost = torch.Tensor(cost)
+            else:
+                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
             if self.mode == 'test' and not self.no_catastrophe_pred: # use catastrophe prediction during adaptation
                 # catastrophe_cost_fn masks `cost`
                 #   if there is a catastrophe, the cost for that timestep is increased by COLLISION_COST=1e4 (configured in config/{env}.py)

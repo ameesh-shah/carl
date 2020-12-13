@@ -260,7 +260,7 @@ class PointmassEnv(gym.Env):
 
   def __init__(self,
                difficulty=1,
-               dense_reward=False,
+               dense_reward=True,
                # action_noise=0.5
                action_noise=0
                ):
