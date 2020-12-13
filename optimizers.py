@@ -190,7 +190,6 @@ class DiscreteCEMOptimizer(Optimizer):
             possible_actions (np.ndarray): The possible actions this discrete env allows
         """
         mean, t = init_mean, 0
-        assert mean.shape == (25, 5)
         while t < self.max_iters:
 
             # Should this return a series of concrete actions

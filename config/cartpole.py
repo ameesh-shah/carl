@@ -15,7 +15,7 @@ class CartPoleConfigModule:
     ENV_NAME = "MBRLCartPole-v0"
     TASK_HORIZON = 200
     NTRAIN_ITERS = 50
-    NROLLOUTS_PER_ITER = 1
+    NROLLOUTS_PER_ITER = 100
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 6, 4
@@ -74,6 +74,11 @@ class CartPoleConfigModule:
 
     @staticmethod
     def obs_cost_fn(obs):
+        """
+        Args:
+            obs: shape (batch_size, obs_dim) = (popsize [400] * npart[20], obs_dim)
+        """
+        import pdb; pdb.set_trace()
         ee_pos, ideal_pos = CONFIG_MODULE._get_ee_pos(obs)
 
         ee_pos -= ideal_pos
@@ -88,6 +93,13 @@ class CartPoleConfigModule:
 
     @staticmethod
     def ac_cost_fn(acs):
+        """
+        Args:
+            obs: shape (batch_size, ac_dim) = (popsize * npart, ac_dim)
+        Returns:
+            
+        """
+        import pdb; pdb.set_trace()
         return 0.01 * (acs ** 2).sum(dim=1)
 
     @staticmethod
