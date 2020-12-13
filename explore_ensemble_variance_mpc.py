@@ -9,10 +9,10 @@ import torch
 
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-from MPC import MPC
+from explore_base_mpc import ExploreMPC
 from env.pointmass import PointmassEnv
 
-class ExploreEnsembleVarianceMPC(MPC):
+class ExploreEnsembleVarianceMPC(ExploreMPC):
 
     def __init__(self, params):
         super().__init__(params)
@@ -45,6 +45,7 @@ class ExploreEnsembleVarianceMPC(MPC):
 
         return self.obs_postproc(obs, predictions)
 
+<<<<<<< HEAD
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
         # ac_seqs shape: (popsize, plan_hor, ac_dim)
@@ -70,8 +71,8 @@ class ExploreEnsembleVarianceMPC(MPC):
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
 
         # cost: (popsize, npart) (one cost per population sample / particle)
-        intrinsic_cost, plot_tensors_in = self._compile_cost_intrinsic(ac_seqs, cur_obs)
-        supervised_cost, plot_tensors_sup = self._compile_cost_reward(ac_seqs, cur_obs)
+        intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
+        supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
 
         print('Intrinsic cost: ' + str(intrinsic_cost))
         print('Supervised cost: ' + str(supervised_cost))
@@ -79,6 +80,8 @@ class ExploreEnsembleVarianceMPC(MPC):
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0
 
+=======
+>>>>>>> 347edb307da1027e8d22dd428e40ed38cdd4404f
     @torch.no_grad()
     def _compile_cost_intrinsic(self, ac_seqs, cur_obs):
         """Computes intrinsic exploration cost (negated exploration_reward). Incentivize agents to visit states
@@ -151,61 +154,4 @@ class ExploreEnsembleVarianceMPC(MPC):
                 "costs_per_step": costs
                 }
         mean_cost = costs.mean()
-        return mean_cost.detach().cpu().numpy(), plot_tensors
-
-    @torch.no_grad()
-    def _compile_cost_reward(self, ac_seqs, cur_obs):
-        """Computes supervised reward (environment reward (baseline) or unsafe reward (ours)).
-
-        Args:
-            ac_seqs (torch.Tensor):
-            cur_obs (torch.Tensor):
-        Returns:
-            cost (ndarray): 
-
-        """
-        costs = torch.zeros(self.optimizer.popsize, self.npart, device=TORCH_DEVICE)
-
-        for t in range(self.plan_hor):
-            cur_acs = ac_seqs[t]
-
-            # next_obs shape: (npart * pop_size, obs_shape) = (8000, 4)
-            # mean, var shape: (num_nets, npart * popsize / num_nets, obs_shape) = (5, 1600, 4)
-            # calculate variance over all bootstraps
-            next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
-            # cost shape: (npart * pop_size, obs_shape)
-
-            # Reward calculation but do special treatment for PointmassEnv
-            if (isinstance(self.env, PointmassEnv)):
-                # print(next_obs)
-                _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
-                # print(reward)
-                # print(reward.shape)
-                # The cost should mostly be ones, if the reward is sparse.
-                cost = torch.from_numpy(-reward).float().to(TORCH_DEVICE) + self.ac_cost_fn(cur_acs)
-            else:
-                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
-
-            if self.mode == 'test' and not self.no_catastrophe_pred: # use catastrophe prediction during adaptation
-                # catastrophe_cost_fn masks `cost`
-                #   if there is a catastrophe, the cost for that timestep is increased by COLLISION_COST=1e4 (configured in config/{env}.py)
-                #   else, the cost is `cost`
-                # self.percentile (default 100 during train / 50 during test) controls when we mark a state as trajectory
-                #   e.g. if 50, we get marked as catastrophe if (predicted) next_obs catastrophe >= .5
-                #   setting it lower results in more risk-averse planning (we avoid states if there is even a small prob of catastrophe)
-                cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
-            elif self.mode == 'train' and self.unsafe_pretraining:
-                catastrophe_prob = next_obs[..., -1]
-                cost = -(100 * catastrophe_prob) # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
-            # cost: (popsize, npart)
-            cost = cost.view(-1, self.npart)
-            costs += cost
-            cur_obs = self.obs_postproc2(next_obs)
-
-        # Replace nan with high cost
-        costs[costs != costs] = 1e6
-        plot_tensors = {
-                "costs_per_step": costs
-                }
-        mean_cost = costs.mean(dim=1)
-        return mean_cost.detach().cpu().numpy(), plot_tensors
+        return mean_cost.detach().cpu().numpy()
