@@ -45,7 +45,6 @@ class MBExperiment:
                     .nadapt_iters (int): (optional) Number of adaptation iters to perform. 10 in paper.
                     .continue_train (bool): Whether to continue training from a load_model_dir.
                     .test_domain (float): Environment domain used for adaptation/testing.
-                    .nrollout_per_itr (int): Number of rollouts per training iteration.
                     .start_epoch (int): Which epoch to start training from, used for continuing to train
                         a trained model.
                     .nexplore_iters (int): Number of unsupervised exploration iterations to be performed.
@@ -75,7 +74,6 @@ class MBExperiment:
 
         self.continue_train = params.exp_cfg.get("continue_train", False)
         self.test_domain = params.exp_cfg.get("test_domain", None)
-        self.nrollout_per_itr = params.exp_cfg.get("nrollout_per_itr", 1)
         self.start_epoch = params.exp_cfg.get("start_epoch", 0)
 
         self.nrecord = params.log_cfg.get("nrecord", 0)
@@ -185,7 +183,7 @@ class MBExperiment:
             print("####################################################################")
             print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
 
-            for j in range(max(self.nrollout_per_itr, self.nrollouts_per_iter)):
+            for j in range(self.nrollouts_per_iter):
                 self.policy.percentile = percentile
                 if self.record_video:
                     self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, print_str, i, self.policy.percentile, j), force=True)
