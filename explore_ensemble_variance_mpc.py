@@ -61,11 +61,18 @@ class ExploreEnsembleVarianceMPC(MPC):
         # self.sy_cur_obs: (obs_dim,)
         # cur_obs final shape: (npart * pop_size, obs_dim) = (8000, 1 [cartpole]) 
         cur_obs = torch.from_numpy(self.sy_cur_obs).float().to(TORCH_DEVICE)
+        
+        print('Current observation: ' + str(cur_obs))
+        print('Action sequence: ' + str(ac_seqs))
+
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
 
         intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
+
+        print('Intrinsic cost: ' + str(intrinsic_cost))
+        print('Supervised cost: ' + str(supervised_cost))
 
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0
