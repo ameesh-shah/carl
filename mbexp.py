@@ -39,6 +39,11 @@ def main(args):
     cfg = create_config(args)
     cfg.pprint()
 
+    # Set env for PointmassEnv 
+    if (isinstance(cfg.ctrl_cfg.env, PointmassEnv)):
+        # Change optimizer to discrete CEM
+        cfg.ctrl_cfg.opt_cfg.mode = 'DCEM'
+
     #assert args.ctrl_type == 'MPC'
     if args.ctrl_type == 'PuP':
         print("Using Pets-using-Pets Policy.")
@@ -50,11 +55,6 @@ def main(args):
     else:
         print("Using default MPC Policy.")
         cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
-
-    # Set env for PointmassEnv 
-    if (isinstance(cfg.ctrl_cfg.env, PointmassEnv)):
-        # Change optimizer to discrete CEM
-        cfg.ctrl_cfg.opt_cfg.mode = 'DCEM'
 
     exp = MBExperiment(cfg.exp_cfg)
 

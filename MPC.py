@@ -347,7 +347,7 @@ class MPC:
         d_cem = isinstance(self.optimizer, DiscreteCEMOptimizer)
         cem = isinstance(self.optimizer, CEMOptimizer)
         if d_random or d_cem:
-            # print('***** Using a discrete optimizer')
+            print('***** Using a discrete optimizer')
             if not self.has_been_trained:
                 # (Resolved): original code, below, is wrong about arange part. 
                 # Should select the first element of the shape instead of the last.
@@ -387,7 +387,7 @@ class MPC:
             return self.act(obs, t)
 
         else:
-            # print('***** Using a continuous optimizer')
+            print('***** Using a continuous optimizer')
             if not self.has_been_trained:
                 return np.random.uniform(self.ac_lb, self.ac_ub, self.ac_lb.shape)
             # If we still have acs in the buffer (we only replan every `self.per` steps), pop the next action
@@ -438,9 +438,11 @@ class MPC:
             # on the boundary and reset std to 0.
             if (isinstance(self.env, PointmassEnv)):
                 _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
+                print(reward)
+                print(reward.shape)
                 # The cost should mostly be ones, since
                 # the reward is sparse.
-                cost = -1 * reward + self.ac_cost_fn(cur_acs)
+                cost = -1 * np.sum(reward) + self.ac_cost_fn(cur_acs)
                 cost = torch.Tensor(cost)
             else:
                 cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
@@ -448,9 +450,8 @@ class MPC:
             # One difference between CARL and this work is that
             # during the exploration phase of this work, the agent is aware of safety
             # during exploration, instead of just at test time.
-            # if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
-                # cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
-            cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
+            if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
+                cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
 
             cost = cost.view(-1, self.npart)
             import pdb; pdb.set_trace()

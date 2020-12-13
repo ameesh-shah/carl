@@ -261,7 +261,8 @@ class PointmassEnv(gym.Env):
   def __init__(self,
                difficulty=1,
                dense_reward=True,
-               action_noise=0.5
+               # action_noise=0.5
+               action_noise=0
                ):
     """Initialize the point environment.
 
@@ -361,8 +362,10 @@ class PointmassEnv(gym.Env):
           self.last_trajectory = self.plot_trajectory()
 
       if mode == 'train':
-          self.action_noise = np.random.uniform(low=0.0, high=1.0) 
-          print('Resetting the environment. action_noise: ' + str(self.action_noise))
+          # self.action_noise = np.random.uniform(low=0.0, high=1.0) 
+          # print('Resetting the environment. action_noise: ' + str(self.action_noise))
+          self.action_noise = 0
+          print('Action noise is constantly set to 0.')
       elif mode == 'test':
           self.action_noise = self.test_action_noise
       else:
