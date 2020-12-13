@@ -265,6 +265,7 @@ class MPC:
 
                 inv_var = torch.exp(-logvar)
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
+                print("=== State loss: ", state_loss)
                 state_loss = state_loss.mean(-1).mean(-1).sum()
 
                 if not self.no_catastrophe_pred:
@@ -289,6 +290,7 @@ class MPC:
                 val_catastrophe_targ = val_targ[..., -1:]
                 # FIXME: add catastrophe prob
                 mean, _, catastrophe_prob = self.model(val_in)
+                print("max val mean: ", torch.max(mean))
                 mse_losses = ((mean - val_state_targ) ** 2).mean(-1).mean(-1)
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(val_catastrophe_targ == 1)
@@ -356,6 +358,7 @@ class MPC:
 
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
+                print("returning act from buffer ", t)
                 if d_random:
                     return action
                 return self.possible_actions[np.argmax(action)]
@@ -364,6 +367,7 @@ class MPC:
             # (Resolved) What is soln here?
             # It is an ndarray of shape (?, 25, 5)
             # with 5 being the probability of actions
+            print("act")
             soln = self.optimizer.obtain_solution(self.prev_sol, self.possible_actions)
 
             if d_random:
@@ -383,10 +387,10 @@ class MPC:
                 # self.ac_buf = soln[:1].reshape(-1, self.dU)
                 self.ac_buf = self.env.possible_actions[np.argmax(soln[:1])]
 
+            print("returning act ", t)
             return self.act(obs, t)
 
         else:
-            print('***** Using a continuous optimizer')
             if not self.has_been_trained:
                 return np.random.uniform(self.ac_lb, self.ac_ub, self.ac_lb.shape)
             # If we still have acs in the buffer (we only replan every `self.per` steps), pop the next action
@@ -436,14 +440,14 @@ class MPC:
             # out of bounds. If it is out of bound, fix the mean
             # on the boundary and reset std to 0.
             if (isinstance(self.env, PointmassEnv)):
-                print(next_obs)
+                #print(next_obs)
+                print(torch.max(next_obs))
                 _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
                 print(reward)
                 print(reward.shape)
                 # The cost should mostly be ones, since
                 # the reward is sparse.
-                cost = -1 * np.sum(reward) + self.ac_cost_fn(cur_acs)
-                cost = torch.Tensor(cost)
+                cost = torch.from_numpy(-reward).float().to(TORCH_DEVICE) + self.ac_cost_fn(cur_acs)
             else:
                 cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
@@ -454,7 +458,6 @@ class MPC:
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
 
             cost = cost.view(-1, self.npart)
-            import pdb; pdb.set_trace()
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)
 

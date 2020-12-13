@@ -34,6 +34,8 @@ class ExploreEnsembleVarianceMPC(MPC):
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
 
         predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
+        print("IN PRED NEXT OBS")
+#        import pdb; pdb.set_trace()
 
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
@@ -43,13 +45,12 @@ class ExploreEnsembleVarianceMPC(MPC):
 
         return self.obs_postproc(obs, predictions)
 
-
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
         # ac_seqs shape: (popsize, plan_hor, ac_dim)
         # Preprocess
+        print("compile_cost")
         ac_seqs = torch.from_numpy(ac_seqs).float().to(TORCH_DEVICE)
-
         # Reshape ac_seqs so that it's amenable to parallel compute
         # ac_seqs final shape: (self.plan_hor, npart * pop_size, ac_dim) = (25, 8000, 1 [cartpole])
         ac_seqs = ac_seqs.view(-1, self.plan_hor, self.dU)
@@ -57,7 +58,6 @@ class ExploreEnsembleVarianceMPC(MPC):
         expanded = transposed[:, :, None]
         tiled = expanded.expand(-1, -1, self.npart, -1)
         ac_seqs = tiled.contiguous().view(self.plan_hor, -1, self.dU)
-
         # Expand current observation
         # self.sy_cur_obs: (obs_dim,)
         # cur_obs final shape: (npart * pop_size, obs_dim) = (8000, 1 [cartpole]) 
@@ -69,8 +69,9 @@ class ExploreEnsembleVarianceMPC(MPC):
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
 
-        intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
-        supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
+        # cost: (popsize, npart) (one cost per population sample / particle)
+        intrinsic_cost, plot_tensors_in = self._compile_cost_intrinsic(ac_seqs, cur_obs)
+        supervised_cost, plot_tensors_sup = self._compile_cost_reward(ac_seqs, cur_obs)
 
         print('Intrinsic cost: ' + str(intrinsic_cost))
         print('Supervised cost: ' + str(supervised_cost))
@@ -101,6 +102,12 @@ class ExploreEnsembleVarianceMPC(MPC):
             # mean, var shape: (num_nets, npart * popsize / num_nets, obs_shape) = (5, 1600, 4)
             # calculate variance over all bootstraps
             next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
+#            import pdb; pdb.set_trace()
+            if torch.max(mean) >= 3:
+                print("MEAN TOO BIG")
+                print(torch.max(mean))
+ #               import pdb; pdb.set_trace()
+
             # each of `popsize` CEM samples is a different action, so we shouldn't avg states over popsize
             # mean: (num_nets, npart / num_nets, popsize, env obs_shape [without extra obs like catastrophe_prob])
             mean = mean.view(self.model.num_nets, self.npart // self.model.num_nets,
@@ -140,8 +147,11 @@ class ExploreEnsembleVarianceMPC(MPC):
         costs = -torch.sum(r_t, dim=0)
         # Replace nan with high cost
         costs[costs != costs] = 1e6
+        plot_tensors = {
+                "costs_per_step": costs
+                }
         mean_cost = costs.mean()
-        return mean_cost.detach().cpu().numpy()
+        return mean_cost.detach().cpu().numpy(), plot_tensors
 
     @torch.no_grad()
     def _compile_cost_reward(self, ac_seqs, cur_obs):
@@ -172,8 +182,7 @@ class ExploreEnsembleVarianceMPC(MPC):
                 # print(reward)
                 # print(reward.shape)
                 # The cost should mostly be ones, if the reward is sparse.
-                cost = -1 * np.sum(reward) + self.ac_cost_fn(cur_acs)
-                cost = torch.Tensor(cost)
+                cost = torch.from_numpy(-reward).float().to(TORCH_DEVICE) + self.ac_cost_fn(cur_acs)
             else:
                 cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
@@ -195,5 +204,8 @@ class ExploreEnsembleVarianceMPC(MPC):
 
         # Replace nan with high cost
         costs[costs != costs] = 1e6
+        plot_tensors = {
+                "costs_per_step": costs
+                }
         mean_cost = costs.mean(dim=1)
-        return mean_cost.detach().cpu().numpy()
+        return mean_cost.detach().cpu().numpy(), plot_tensors
