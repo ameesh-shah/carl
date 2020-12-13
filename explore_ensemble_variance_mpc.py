@@ -4,11 +4,13 @@ from __future__ import print_function
 
 from tqdm import trange
 
+import numpy as np
 import torch
 
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 from MPC import MPC
+from env.pointmass import PointmassEnv
 
 class ExploreEnsembleVarianceMPC(MPC):
 
@@ -60,11 +62,18 @@ class ExploreEnsembleVarianceMPC(MPC):
         # self.sy_cur_obs: (obs_dim,)
         # cur_obs final shape: (npart * pop_size, obs_dim) = (8000, 1 [cartpole]) 
         cur_obs = torch.from_numpy(self.sy_cur_obs).float().to(TORCH_DEVICE)
+        
+        print('Current observation: ' + str(cur_obs))
+        print('Action sequence: ' + str(ac_seqs))
+
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
 
         intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
+
+        print('Intrinsic cost: ' + str(intrinsic_cost))
+        print('Supervised cost: ' + str(supervised_cost))
 
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0
@@ -155,7 +164,19 @@ class ExploreEnsembleVarianceMPC(MPC):
             # calculate variance over all bootstraps
             next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
             # cost shape: (npart * pop_size, obs_shape)
-            cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
+            # Reward calculation but do special treatment for PointmassEnv
+            if (isinstance(self.env, PointmassEnv)):
+                # print(next_obs)
+                _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
+                # print(reward)
+                # print(reward.shape)
+                # The cost should mostly be ones, if the reward is sparse.
+                cost = -1 * np.sum(reward) + self.ac_cost_fn(cur_acs)
+                cost = torch.Tensor(cost)
+            else:
+                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
             if self.mode == 'test' and not self.no_catastrophe_pred: # use catastrophe prediction during adaptation
                 # catastrophe_cost_fn masks `cost`
                 #   if there is a catastrophe, the cost for that timestep is increased by COLLISION_COST=1e4 (configured in config/{env}.py)
