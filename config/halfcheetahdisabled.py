@@ -70,6 +70,7 @@ class HalfCheetahConfigModule:
 
     @staticmethod
     def obs_cost_fn(obs):
+        # -2 dimension is env reward
         return -obs[:, -2]
 
     @staticmethod

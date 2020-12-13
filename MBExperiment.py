@@ -21,7 +21,7 @@ import torch
 from env.pointmass import PointmassEnv
 
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
+#Do
 
 class MBExperiment:
     def __init__(self, params):
@@ -48,6 +48,8 @@ class MBExperiment:
                     .nrollout_per_itr (int): Number of rollouts per training iteration.
                     .start_epoch (int): Which epoch to start training from, used for continuing to train
                         a trained model.
+                    .nexplore_iters (int): Number of unsupervised exploration iterations to be performed.
+
 
                 .log_cfg:
                     .logdir (str): Directory to log to.
@@ -70,12 +72,18 @@ class MBExperiment:
         self.ntest_rollouts = params.exp_cfg.get("ntest_rollouts", 1)
         self.nadapt_iters = params.exp_cfg.get("nadapt_iters", 0)
         self.policy = get_required_argument(params.exp_cfg, "policy", "Must provide a policy.")
+
         self.continue_train = params.exp_cfg.get("continue_train", False)
         self.test_domain = params.exp_cfg.get("test_domain", None)
         self.nrollout_per_itr = params.exp_cfg.get("nrollout_per_itr", 1)
         self.start_epoch = params.exp_cfg.get("start_epoch", 0)
+
+        self.nrecord = params.log_cfg.get("nrecord", 0)
+        self.neval = params.log_cfg.get("neval", 1)
         
         self.training_percentile = self.policy.percentile
+
+        self.frac_unsafe_pretraining = params.exp_cfg.get("frac_unsafe_pretraining", 0)
 
         if self.continue_train:
             self.logdir = params.exp_cfg.load_model_dir
@@ -86,8 +94,9 @@ class MBExperiment:
             self.policy.train_targs = np.load(os.path.join(self.logdir, "train_targs.npy"))
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            strftime("%Y-%m-%d--%H-%M-%S", localtime())
+            f"{params.log_cfg.get('expname') or ''}_{strftime('%Y-%m-%d--%H-%M-%S', localtime())}",
         )
+        print("Logging to: ", self.logdir)
         self.suffix = params.log_cfg.get("suffix", None)
         if self.suffix is not None:
             self.logdir = self.logdir + '-' + self.suffix
@@ -120,6 +129,7 @@ class MBExperiment:
                     env=self.env,
                 )
             )
+        print("Training with initial rollouts ", self.ninit_rollouts)
 
         if self.ninit_rollouts > 0:
             self.policy.train(
@@ -153,21 +163,28 @@ class MBExperiment:
         if adaptation:
             iteration_range = [self.nadapt_iters]
             percentile = self.test_percentile
+            self.policy.unsafe_pretraining = False
             print_str = "ADAPT"
         else:
             iteration_range = [self.start_epoch, self.ntrain_iters]
             percentile = self.training_percentile
+            self.policy.unsafe_pretraining = True # start off by default
             print_str = "TRAIN"
         for i in trange(*iteration_range):
             if i % 2 == 0 and adaptation:
                 self.run_test_evals(i)
-            print("####################################################################")
-            print("Starting training on " + print_str + " env iteration %d" % (i + 1))
-
+            
             samples = []
             self.policy.clear_stats()
             self.policy.percentile = percentile
-            print(max(self.nrollout_per_itr, self.nrollouts_per_iter))
+
+            # Unsafe pretraining for first `frac_unsafe_pretraining` proportion of ntrain_iters
+            if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters:
+                self.policy.unsafe_pretraining = False 
+
+            print("####################################################################")
+            print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
+
             for j in range(max(self.nrollout_per_itr, self.nrollouts_per_iter)):
                 self.policy.percentile = percentile
                 if self.record_video:
@@ -176,7 +193,7 @@ class MBExperiment:
                 samples.append(
                     self.agent.sample(
                         self.task_hor, self.policy, record=self.record_video and adaptation,
-                        env=self.env, mode='test' if adaptation else 'train',
+                        env=self.env, mode='test' if adaptation else 'train'
                     )
                 )
             if self.record_video:

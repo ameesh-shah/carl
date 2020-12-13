@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 from tqdm import trange
 
 import torch
+import pytorch_util as ptu
+
 
 from env.pointmass import PointmassEnv
 
@@ -39,7 +41,7 @@ class MPC:
                     Defaults to environment action lower bounds.
                 .per (int): (optional) Determines how often the action sequence will be optimized.
                     Defaults to 1 (reoptimizes at every call to act()).
-                .prop_cfg
+     rnd_model.py           .prop_cfg
                     .model_init_cfg (DotMap): A DotMap of initialization parameters for the model.
                         .model_constructor (func): A function which constructs an instance of this
                             model, given model_init_cfg.
@@ -388,19 +390,23 @@ class MPC:
             # print('***** Using a continuous optimizer')
             if not self.has_been_trained:
                 return np.random.uniform(self.ac_lb, self.ac_ub, self.ac_lb.shape)
+            # If we still have acs in the buffer (we only replan every `self.per` steps), pop the next action
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
                 return action
 
             self.sy_cur_obs = obs
 
+            # `optimizer.obtain_solution` calls this MPC's `compile_cost`, which computes the cost of the current `self.sy_cur_obs` (loool)
             soln = self.optimizer.obtain_solution(self.prev_sol, self.init_var)
+            # we reoptimize the ac seq every `self.per` timesteps, so get the next batch of acs
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
 
             return self.act(obs, t)
 
 
+    # Base compile_cost
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
         nopt = ac_seqs.shape[0]
@@ -447,6 +453,7 @@ class MPC:
             cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
 
             cost = cost.view(-1, self.npart)
+            import pdb; pdb.set_trace()
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)
 
@@ -466,6 +473,7 @@ class MPC:
             lengths = torch.sum(~torch.isnan(costs), dim=1).float()
             mean_cost = discounted_sum / lengths
         else:
+            # cost shape: (popsize, npart)
             mean_cost = costs.mean(dim=1)
         return mean_cost.detach().cpu().numpy()
 
@@ -538,4 +546,3 @@ class MPC:
         reshaped = transposed.contiguous().view(-1, dim)
 
         return reshaped
-
