@@ -17,7 +17,7 @@ class PointmassEasyConfigModule:
     NTRAIN_ITERS = 50
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
-    PLAN_HOR = 25
+    PLAN_HOR = 10
     MODEL_IN, MODEL_OUT = 4, 2 # In; (x, y, ac_x, ac_y), Out: (x, y)
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
@@ -81,11 +81,17 @@ class PointmassEasyConfigModule:
     # Instead of using this, use reward from step().
     @staticmethod
     def obs_cost_fn(obs):
-        return 0
+        """
+        Args:
+            obs: shape (batch_size, obs_dim) = (npart * popsize, obs_dim) = (8000, ...)
+        Returns:
+            zeros (8000,)
+        """
+        return torch.zeros(obs.shape[0], device=TORCH_DEVICE)
 
     @staticmethod
     def ac_cost_fn(acs):
-        return 0
+        return torch.zeros(acs.shape[0], device=TORCH_DEVICE)
 
     def nn_constructor(self, model_init_cfg):
 

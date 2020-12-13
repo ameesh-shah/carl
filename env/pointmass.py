@@ -260,7 +260,7 @@ class PointmassEnv(gym.Env):
 
   def __init__(self,
                difficulty=1,
-               dense_reward=True,
+               dense_reward=False,
                # action_noise=0.5
                action_noise=0
                ):
@@ -281,7 +281,7 @@ class PointmassEnv(gym.Env):
     self.action_dim = self.ac_dim = 2
     # Normal observation dim + random variable + catastrophe prob
     # Similar to cartpole
-    self.observation_dim = self.obs_dim = 4 # x, y, action_noise, catastrophe_prob
+    self.observation_dim = self.obs_dim = 4 # x, y, action_noise, catastrophe_prob # TODO: vary this across envs
     self.env_name = 'pointmass'
     self.is_gym = True
 
@@ -364,8 +364,7 @@ class PointmassEnv(gym.Env):
       if mode == 'train':
           # self.action_noise = np.random.uniform(low=0.0, high=1.0) 
           # print('Resetting the environment. action_noise: ' + str(self.action_noise))
-          self.action_noise = 0
-          print('Action noise is constantly set to 0.')
+          self.action_noise = 0.5 # TODO: vary this across envs
       elif mode == 'test':
           self.action_noise = self.test_action_noise
       else:
@@ -509,7 +508,9 @@ class PointmassEnv(gym.Env):
 
     # Compute distance between current state and goal state
     # dist = np.linalg.norm(self.state - self.fixed_goal)
+    print(self.state)
     dist, reward = self.get_dist_and_reward(self.state)
+    print(dist)
     done = (dist < self.epsilon) or (self.timesteps_left == 0)
 
     # Normalized original obs
@@ -633,7 +634,6 @@ class PointmassEnv(gym.Env):
             catastrophic_states.append(e)
         if not self.dense_reward:
             d, re = self.get_dist_and_reward(e[:2])
-            print(d)
             if re >= 0:
                 rewarding_states.append(e)
     

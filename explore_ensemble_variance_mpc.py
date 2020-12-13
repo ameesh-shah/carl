@@ -10,7 +10,6 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 
 from MPC import MPC
 
-
 class ExploreEnsembleVarianceMPC(MPC):
 
     def __init__(self, params):
@@ -162,7 +161,7 @@ class ExploreEnsembleVarianceMPC(MPC):
             # mean, var shape: (num_nets, npart * popsize / num_nets, obs_shape) = (5, 1600, 4)
             # calculate variance over all bootstraps
             next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
-            # cost shape: TODO
+            # cost shape: (npart * pop_size, obs_shape)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
             if self.mode == 'test' and not self.no_catastrophe_pred: # use catastrophe prediction during adaptation
                 # catastrophe_cost_fn masks `cost`
@@ -175,6 +174,7 @@ class ExploreEnsembleVarianceMPC(MPC):
             elif self.mode == 'train' and self.unsafe_pretraining:
                 catastrophe_prob = next_obs[..., -1]
                 cost = -(100 * catastrophe_prob) # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
+            # cost: (popsize, npart)
             cost = cost.view(-1, self.npart)
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)

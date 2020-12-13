@@ -347,7 +347,6 @@ class MPC:
         d_cem = isinstance(self.optimizer, DiscreteCEMOptimizer)
         cem = isinstance(self.optimizer, CEMOptimizer)
         if d_random or d_cem:
-            print('***** Using a discrete optimizer')
             if not self.has_been_trained:
                 # (Resolved): original code, below, is wrong about arange part. 
                 # Should select the first element of the shape instead of the last.
@@ -437,6 +436,7 @@ class MPC:
             # out of bounds. If it is out of bound, fix the mean
             # on the boundary and reset std to 0.
             if (isinstance(self.env, PointmassEnv)):
+                print(next_obs)
                 _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
                 print(reward)
                 print(reward.shape)
