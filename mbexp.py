@@ -9,7 +9,9 @@ import pprint
 from dotmap import DotMap
 
 from MBExperiment import MBExperiment
-from MPC import MPC, RNDExploreMPC, ExploreEnsembleVarianceMPC
+from MPC import MPC
+from explore_ensemble_variance_mpc import ExploreEnsembleVarianceMPC
+from explore_rnd_mpc import ExploreRNDMPC
 from config import create_config
 import env # We run this so that the env is registered
 
@@ -31,8 +33,7 @@ def set_global_seeds(seed):
 
 
 def main(args):
-    #set_global_seeds(0)
-
+    set_global_seeds(0)
 
     cfg = create_config(args)
     cfg.pprint()
@@ -42,8 +43,9 @@ def main(args):
         print("Using Pets-using-Pets Policy.")
         cfg.exp_cfg.exp_cfg.policy = ExploreEnsembleVarianceMPC(cfg.ctrl_cfg)
     elif args.ctrl_type == 'RND':
+        assert False, "JL: Not implemented fully yet!"
         print("Using RND Policy.")
-        cfg.exp_cfg.exp_cfg.policy = RNDExploreMPC(cfg.ctrl_cfg)
+        cfg.exp_cfg.exp_cfg.policy = ExploreRNDMPC(cfg.ctrl_cfg)
     else:
         print("Using default MPC Policy.")
         cfg.exp_cfg.exp_cfg.policy = MPC(cfg.ctrl_cfg)
@@ -102,9 +104,11 @@ if __name__ == "__main__":
                         help='suffix to attach to a run')
     parser.add_argument('--record_video', action='store_true',
                         help='whether to record the test rollouts')
-    parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what policy for pretraining we want to use." + \
-                                                                  "options so far are: MPC, PuP, RND")
-    #parser.add_argument('-expname', type=str, help='Name of experiment to organize logging dir.')
+    parser.add_argument('--ctrl_type', type=str, default="MPC", help="Determine what intrinsic reward we want to use for pretraining. Using default MPC means we optimize directly for the reward with no intrinsic exploration bonus. \
+            options so far are: MPC, PuP, RND")
+    parser.add_argument('--frac_unsafe_pretraining', type=float, default=0,
+                         help='Proportion ([0,1]) of pretraining iterations to use to explore unsafe regions of the space.')
+    parser.add_argument('--expname', type=str, help='Name of experiment to organize logging dir.')
     args = parser.parse_args()
 
     #args.ctrl_type = "MPC"

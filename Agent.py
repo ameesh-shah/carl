@@ -28,6 +28,7 @@ class Agent:
         """
         times, rewards = [], []
         policy.mode = mode
+        # env.reset selects a random environment with the train/test distribution
         O, A, reward_sum, done = [env.reset(mode=mode)], [], 0, False
         policy.reset()
         for t in trange(horizon):
