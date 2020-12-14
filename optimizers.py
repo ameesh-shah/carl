@@ -175,10 +175,19 @@ class DiscreteCEMOptimizer(Optimizer):
     # instead of action id, because the action will be fed into 
     # _predict_next_obs
     def sample_from_categorical(self, probs, possible_actions, num_samples):
+        """
+        Args:
+            probs (prev_sol): shape (self.plan_hor, num_poss_acs), ac probabilities for each step of plan_hor
+            possible_actions: list of possible actions, length `num_poss_acs`
+            num_samples: number of samples to draw
+        Returns:
+            Draws `num_samples`, each sample with `self.plan_hor` actions drawn from the prob dist of acs for that timestep
+            samples: shape (num_samples, self.plan_hor, ac_dim)
+        """
         probs += 0.001 # prevent torch from thinking anything is < 0
+        # shape (num_samples, self.plan_hor)
         samples = torch.distributions.categorical.Categorical(probs=torch.from_numpy(probs)).sample([num_samples])
-        
-        samples = possible_actions[samples.numpy()].astype(np.float32)
+        samples = np.take(possible_actions, samples.numpy(), axis=0).astype(np.float32)
         return samples
 
     # performing one hot encoding
@@ -186,20 +195,21 @@ class DiscreteCEMOptimizer(Optimizer):
         """Optimizes the cost function using the provided initial candidate distribution
 
         Arguments:
-            init_mean (np.ndarray): The mean of the initial candidate distribution.
+            init_mean (np.ndarray): The mean of the initial candidate distribution. shape (plan_hor, ac_dim)
             possible_actions (np.ndarray): The possible actions this discrete env allows
+        Returns:
+            mean action probability (across elite samples) for the horizon
+                (plan_hor, ac_dim)
         """
         mean, t = init_mean, 0
         while t < self.max_iters:
 
-            # Should this return a series of concrete actions
+            # samples: shape (popsize, plan_hor, ac_dim)
             samples = self.sample_from_categorical(mean, possible_actions, self.popsize)
-            # Shape here should be (400, 25, 2)
-            # samples = samples.reshape(self.popsize, self.sol_dim)
-            samples = samples.reshape(self.popsize, mean.shape[0], int(self.sol_dim / mean.shape[0]))
+            assert samples.shape == (self.popsize, mean.shape[0], possible_actions[0].shape[-1])
 
             costs = self.cost_function(samples)
-            elites = samples[np.argsort(-costs)][:self.num_elites]
+            elites = samples[np.argsort(costs)][:self.num_elites]
 
             # Cast actions to probabilities
             # Elites are concrete action samples. [0, -1],

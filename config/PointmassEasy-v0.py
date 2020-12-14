@@ -86,7 +86,7 @@ class PointmassEasyConfigModule:
         """Constructs target for training model.
 
         Returns: (note we do NOT predict pendulum len)
-            (state delta, catastrophe_prob) 
+            ((normalized) state delta, catastrophe_prob) 
         """
         state_delta = next_obs[..., :2] - obs[..., :2]
         next_catastrophe_prob = next_obs[...,-1:]
@@ -100,8 +100,7 @@ class PointmassEasyConfigModule:
         """
         # TODO: this is dense reward specifically
         print("next obs: ", obs[:, :2])
-        print("goal: ", obs[:, 2:4])
-        return -torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
+        return torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
 
     @staticmethod
     def ac_cost_fn(acs):

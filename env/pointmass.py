@@ -375,10 +375,9 @@ class PointmassEnv(gym.Env):
 
       if len(self.obs_vec) != 0:
         self.replay_buffer = np.concatenate([self.replay_buffer, self.obs_vec.copy()], axis=0)
-      _, starting_rwd = self.get_dist_and_reward(self.fixed_start)
       self.obs_vec = [np.concatenate([
           self._normalize_obs(self.fixed_start.copy()),
-          self.fixed_goal,
+          self.goal,
           [0] # catastrophe
         ], axis=-1)]
       self.state = self.fixed_start.copy()
@@ -387,7 +386,7 @@ class PointmassEnv(gym.Env):
 
       return np.concatenate([
           self._normalize_obs(self.state.copy()),
-          self.fixed_goal,
+          self.goal,
           [0]], axis=-1)
 
   def reset_model(self, seed=None):
@@ -432,20 +431,6 @@ class PointmassEnv(gym.Env):
           state = new_state
     return state
     
-
-  def get_optimal_action(self, state):
-    state = self._unnormalize_obs(state)
-    best_action = 0
-    best_dist = np.inf
-    for i in range(self.num_actions):
-      action = np.array(ACT_DICT[i])
-      s_prime = self.simulate_step(state, action)
-      dist = self._get_distance(s_prime, self.fixed_goal)
-      if dist < best_dist:
-        best_dist = dist
-        best_action = i
-    return best_action
-
   def _discretize_state(self, state, resolution=1.0):
     (i, j) = np.floor(resolution * state).astype(np.int)
     # Round down to the nearest cell if at the boundary.
@@ -479,6 +464,10 @@ class PointmassEnv(gym.Env):
     return (self._walls[i, j] == 1)
 
   def get_dist_and_reward(self, state):
+    """
+    Args:
+        state: UNNORMALIZED state observation (in [0, 10] instead [0, 1]
+    """
     if (isinstance(state, torch.Tensor)):
         state = state.detach().cpu().numpy()
     # print('State: ' + str(state))
@@ -528,7 +517,7 @@ class PointmassEnv(gym.Env):
     # 2. resize_factor of the walls
     extended_obs = np.concatenate([
             normalized_obs,
-            self.fixed_goal,
+            self.goal,
             [int(catastrophe)]
         ], axis=-1)
 
@@ -614,7 +603,8 @@ class PointmassEnv(gym.Env):
 
     # Annotate rewards
     for i in range(len(obs_vec)):
-        self.plt.annotate(f"{obs_vec[i, 2]:.1f}", obs_vec[i, :2])
+        unnormalized_obs = self._unnormalize_obs(obs_vec[i, :2])
+        self.plt.annotate(f"{obs_vec[i, 2]:.1f}", self.get_dist_and_reward(unnormalized_obs))
 
     # Draw a rewarded states for sparse rewards
     # Draw catastrophe states
@@ -624,7 +614,8 @@ class PointmassEnv(gym.Env):
         if e[-1] != 0:
             catastrophic_states.append(e)
         if not self.dense_reward:
-            d, re = self.get_dist_and_reward(e[:2])
+            unnormalized_obs = self._unnormalize_obs(e[:2])
+            d, re = self.get_dist_and_reward(unnormalized_obs)
             if re >= 0:
                 rewarding_states.append(e)
     

@@ -77,6 +77,8 @@ class ExploreMPC(MPC):
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
             # cost shape: (npart * pop_size, obs_shape)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+            if torch.max(cost) > 1000:
+                import pdb; pdb.set_trace()
 
             if self.mode == 'test' and not self.no_catastrophe_pred:  # use catastrophe prediction during adaptation
                 # catastrophe_cost_fn masks `cost`

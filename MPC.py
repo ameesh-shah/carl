@@ -353,9 +353,8 @@ class MPC:
 
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
-                if d_random:
-                    return action
-                return self.possible_actions[np.argmax(action)]
+                print("picked act: ", action)
+                return action
             self.sy_cur_obs = obs
 
             # (Resolved) What is soln here?
@@ -371,14 +370,18 @@ class MPC:
                 # (Resolved) I don't understand what this concat is doing.
                 # After we are done with the current action, we pop it
                 # and append a new entry.
-                # self.prev_sol = np.concatenate([np.copy(soln)[1:], np.zeros((1, self.per * self.dU))])
-                self.prev_sol = np.concatenate([np.copy(soln)[1:], np.zeros((1, self.per * self.env.action_space.n))])
+                # self.prev_sol: shape (plan_hor, self.dU)
+                # soln: shape (plan_hor, self.env.action_space.n):  probabilities over all discrete actions
+                # all_remaining_actions: shape ((plan_hor - self.per), env.action_space.n): actions we discard bc we only take the first `self.per` actions
+                all_remaining_actions = np.copy(soln)[self.per:] 
+                # self.prev_sol: shape (plan_hor, env.action_space.n), add rest of acs in horizon as zeros
+                self.prev_sol = np.concatenate([all_remaining_actions, np.zeros((self.per, self.env.action_space.n))], axis=0)
 
-                # (Resolved) original code does not convert prob back to action
-                # Fill buffer with the __action__ by selecting the action
-                # with max probability.
-                # self.ac_buf = soln[:1].reshape(-1, self.dU)
-                self.ac_buf = self.env.possible_actions[np.argmax(soln[:1])]
+                # only put self.per actions into the buffer
+                # next_acs: (self.per, self.dU)
+                next_acs = np.take(self.env.possible_actions, np.argmax(soln[:self.per], axis=-1), axis=0)
+                # self.ac_buf: (self.per, self.dU)
+                self.ac_buf = next_acs
 
             return self.act(obs, t)
 
@@ -393,10 +396,14 @@ class MPC:
             self.sy_cur_obs = obs
 
             # `optimizer.obtain_solution` calls this MPC's `compile_cost`, which computes the cost of the current `self.sy_cur_obs` (loool)
+            # soln: (plan_hor,)
             soln = self.optimizer.obtain_solution(self.prev_sol, self.init_var)
             # we reoptimize the ac seq every `self.per` timesteps, so get the next batch of acs
+            # prev_soln: (plan_hor,)
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
+            # ac_buf: (self.per, ac_dim)
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
+            import pdb; pdb.set_trace()
 
             return self.act(obs, t)
 
@@ -435,6 +442,8 @@ class MPC:
             # on the boundary and reset std to 0.
 
 #            print("max next obs: ", torch.max(next_obs).cpu().numpy(), " // mean ", torch.mean(next_obs).cpu().numpy())
+            print("cur_obs: ", cur_obs)
+            print("acs: ", cur_acs)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             # One difference between CARL and this work is that
@@ -465,6 +474,7 @@ class MPC:
         else:
             # cost shape: (popsize, npart)
             mean_cost = costs.mean(dim=1)
+        print("mean cost: ", mean_cost.mean())
         return mean_cost.detach().cpu().numpy()
 
     # FIXME: predicts non-sensical states
