@@ -18,10 +18,10 @@ class PointmassEasyConfigModule:
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 20
-    MODEL_IN, MODEL_OUT = 4, 2
+    MODEL_IN, MODEL_OUT = 4, 3
     """
     MODEL_IN: (x, y, ac_x, ac_y) 
-    MODEL_OUT (x, y)
+    MODEL_OUT (x, y, dist_to_goal)
     """
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
@@ -73,12 +73,12 @@ class PointmassEasyConfigModule:
         """Post processes obs to prepare next_obs for the next iteration (i.e. calculate the
         next state from the predicted state diff in this case and add back the additional info
         we carry around in obs)."""
-        pred_state_change = pred[..., :-1] # remove catastrophe_state dim
+        pred_state_change = pred[..., :-2] # remove catastrophe_state dim
         pred_next_state = obs[..., :2] + pred_state_change 
-        extra_data_reward = obs[..., -2:-1] # extra data we carry around in obs
+        pred_reward = pred[..., -2:-1] # extra data we carry around in obs
         return torch.cat((
             pred_next_state,
-            extra_data_reward,
+            pred_reward,
             CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1) 
 
     @staticmethod
@@ -89,8 +89,9 @@ class PointmassEasyConfigModule:
             (state delta, catastrophe_prob) 
         """
         state_delta = next_obs[..., :2] - obs[..., :2]
+        next_reward = next_obs[..., -2:-1]
         next_catastrophe_prob = next_obs[...,-1:]
-        return np.concatenate((state_delta, next_catastrophe_prob), axis=-1)
+        return np.concatenate((state_delta, next_reward, next_catastrophe_prob), axis=-1)
 
     @staticmethod
     def obs_cost_fn(obs):

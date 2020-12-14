@@ -20,6 +20,10 @@ class HalfCheetahConfigModule:
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 10
     MODEL_IN, MODEL_OUT = 25, 20
+    """
+    MODEL_IN: [obs (dim 19), acs (dim 6)]
+    MODEL_OUT: [next_obs (dim 19), next_rwd]
+    """
     COLLISION_COST = 10000
     MODEL_ENSEMBLE_SIZE = 5
     MODEL_HIDDEN_SIZE = 200
