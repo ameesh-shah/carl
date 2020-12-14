@@ -45,7 +45,6 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
 
         return self.obs_postproc(obs, predictions)
 
-<<<<<<< HEAD
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
         # ac_seqs shape: (popsize, plan_hor, ac_dim)
@@ -80,8 +79,6 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0
 
-=======
->>>>>>> 347edb307da1027e8d22dd428e40ed38cdd4404f
     @torch.no_grad()
     def _compile_cost_intrinsic(self, ac_seqs, cur_obs):
         """Computes intrinsic exploration cost (negated exploration_reward). Incentivize agents to visit states
