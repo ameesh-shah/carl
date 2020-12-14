@@ -199,7 +199,7 @@ class DiscreteCEMOptimizer(Optimizer):
             samples = samples.reshape(self.popsize, mean.shape[0], int(self.sol_dim / mean.shape[0]))
 
             costs = self.cost_function(samples)
-            elites = samples[np.argsort(costs)][:self.num_elites]
+            elites = samples[np.argsort(-costs)][:self.num_elites]
 
             # Cast actions to probabilities
             # Elites are concrete action samples. [0, -1],
@@ -228,5 +228,5 @@ class DiscreteCEMOptimizer(Optimizer):
             mean = mean / normalization_factor[:, np.newaxis]
 
             t += 1
-
+        print("soln: ", mean)
         return mean
