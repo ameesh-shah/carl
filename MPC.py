@@ -262,11 +262,17 @@ class MPC:
                 catastrophe_targ = train_targ[..., -1:]
 
                 mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
+                print('mean: ' + str(mean))
+                print('logvar: ' + str(logvar))
+                print('catastrophe_prob: ' + str(catastrophe_prob))
 
                 inv_var = torch.exp(-logvar)
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
-                print("=== State loss: ", state_loss)
+                print('***** In train() *****')
+                print('train_in: ' + str(train_in))
+                print('train_targ: ' + str(train_targ))
                 state_loss = state_loss.mean(-1).mean(-1).sum()
+                print("=== State loss: ", state_loss)
 
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(catastrophe_targ == 1)
@@ -369,6 +375,8 @@ class MPC:
             # with 5 being the probability of actions
             print("act")
             soln = self.optimizer.obtain_solution(self.prev_sol, self.possible_actions)
+            print("Optimizer solution")
+            print(soln)
 
             if d_random:
                 self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])

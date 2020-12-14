@@ -1,0 +1,1 @@
+python3 mbexp.py --env PointmassEasy-v0 --frac_unsafe_pretraining 0 --ctrl_type PuP --expname pointmass-easy-2 --ninit_rollouts 100

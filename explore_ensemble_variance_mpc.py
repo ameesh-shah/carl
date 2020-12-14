@@ -28,8 +28,12 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
         acs = self._expand_to_ts_format(acs)
 
         inputs = torch.cat((proc_obs, acs), dim=-1)
+        print('=== predict next ob ===')
+        print('input' + str(inputs))
 
         mean, var, catastrophe_prob = self.model(inputs)
+        print('mean' + str(mean))
+        print('var' + str(var))
 
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
 
@@ -103,9 +107,10 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
             # calculate variance over all bootstraps
             next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
 #            import pdb; pdb.set_trace()
-            if torch.max(mean) >= 3:
+            if torch.max(mean) >= 10:
                 print("MEAN TOO BIG")
                 print(torch.max(mean))
+                print(torch.argmax(mean))
  #               import pdb; pdb.set_trace()
 
             # each of `popsize` CEM samples is a different action, so we shouldn't avg states over popsize
