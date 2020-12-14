@@ -231,13 +231,13 @@ WALLS = {
 }
 
 
-ACT_DICT = {
-    0: [0.,0.],
-    1: [0., -1.],
-    2: [0., 1.],
-    3: [-1., 0.],
-    4: [1., 0.],
-}
+ACT_DICT = [
+    [0.,0.],
+    [0., -1.],
+    [0., 1.],
+    [-1., 0.],
+    [1., 0.]
+]
 
 def resize_walls(walls, factor):
   """Increase the environment by rescaling.
@@ -281,7 +281,7 @@ class PointmassEnv(gym.Env):
     self.action_dim = self.ac_dim = 2
     # Normal observation dim + random variable + catastrophe prob
     # Similar to cartpole
-    self.observation_dim = self.obs_dim = 4 # x, y, action_noise, catastrophe_prob # TODO: vary this across envs
+    self.observation_dim = self.obs_dim = 5 # x, y, action_noise, catastrophe_prob # TODO: vary this across envs
     self.env_name = 'pointmass'
     self.is_gym = True
 
@@ -328,7 +328,7 @@ class PointmassEnv(gym.Env):
     # Instead we need to set the possible actions.
     self.action_space.low = -1 # Dummy
     self.action_space.high = -1 # Dummy
-    self.possible_actions = np.asarray(list(ACT_DICT.values())) 
+    self.possible_actions = np.asarray(ACT_DICT) 
 
     self.observation_space = gym.spaces.Box(
         low=np.array([0,0]),
@@ -342,7 +342,7 @@ class PointmassEnv(gym.Env):
     self.test_action_noise = 0.2 # FIXME: make it passed in from outside.
     
     self.obs_vec = []
-    self.replay_buffer = np.array([]).reshape((0, 4))
+    self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
     self.wall_hits = 0
     self.last_trajectory = None
     self.difficulty = difficulty
@@ -378,7 +378,7 @@ class PointmassEnv(gym.Env):
       _, starting_rwd = self.get_dist_and_reward(self.fixed_start)
       self.obs_vec = [np.concatenate([
           self._normalize_obs(self.fixed_start.copy()),
-          [starting_rwd],
+          self.fixed_goal,
           [0] # catastrophe
         ], axis=-1)]
       self.state = self.fixed_start.copy()
@@ -387,7 +387,7 @@ class PointmassEnv(gym.Env):
 
       return np.concatenate([
           self._normalize_obs(self.state.copy()),
-          [starting_rwd],
+          self.fixed_goal,
           [0]], axis=-1)
 
   def reset_model(self, seed=None):
@@ -528,7 +528,7 @@ class PointmassEnv(gym.Env):
     # 2. resize_factor of the walls
     extended_obs = np.concatenate([
             normalized_obs,
-            [reward],
+            self.fixed_goal,
             [int(catastrophe)]
         ], axis=-1)
 

@@ -14,14 +14,14 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 class PointmassEasyConfigModule:
     ENV_NAME = "PointmassEasy-v0"
     TASK_HORIZON = 150
-    NTRAIN_ITERS = 100
+    NTRAIN_ITERS = 50
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
-    PLAN_HOR = 20
-    MODEL_IN, MODEL_OUT = 4, 3
+    PLAN_HOR = 2
+    MODEL_IN, MODEL_OUT = 4, 2
     """
     MODEL_IN: (x, y, ac_x, ac_y) 
-    MODEL_OUT (x, y, dist_to_goal)
+    MODEL_OUT (x, y)
     """
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
@@ -54,11 +54,11 @@ class PointmassEasyConfigModule:
     def obs_preproc(obs):
         """Preprocesses obs to construct input for the model.
         Args:
-            obs: [xpos, ypos, reward, catastrophe] (see half-cheetah for a similar reference)
+            obs: [xpos, ypos, goalx, goaly, catastrophe] (see half-cheetah for a similar reference)
         Returns:
             [xpos, ypos]
         """
-        assert obs.shape[-1] == 4
+        assert obs.shape[-1] == 5
         return obs[..., :2]
 
     # This post-processing function is used in _predict_next_obs in MPC,
@@ -73,12 +73,12 @@ class PointmassEasyConfigModule:
         """Post processes obs to prepare next_obs for the next iteration (i.e. calculate the
         next state from the predicted state diff in this case and add back the additional info
         we carry around in obs)."""
-        pred_state_change = pred[..., :-2] # remove catastrophe_state dim
+        pred_state_change = pred[..., :2] # remove catastrophe_state dim and other extra info
         pred_next_state = obs[..., :2] + pred_state_change 
-        pred_reward = pred[..., -2:-1] # extra data we carry around in obs
+        goal_coords = obs[..., 2:4]
         return torch.cat((
             pred_next_state,
-            pred_reward,
+            goal_coords,
             CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1) 
 
     @staticmethod
@@ -89,9 +89,8 @@ class PointmassEasyConfigModule:
             (state delta, catastrophe_prob) 
         """
         state_delta = next_obs[..., :2] - obs[..., :2]
-        next_reward = next_obs[..., -2:-1]
         next_catastrophe_prob = next_obs[...,-1:]
-        return np.concatenate((state_delta, next_reward, next_catastrophe_prob), axis=-1)
+        return np.concatenate((state_delta, next_catastrophe_prob), axis=-1)
 
     @staticmethod
     def obs_cost_fn(obs):
@@ -99,7 +98,10 @@ class PointmassEasyConfigModule:
         Args:
             obs: shape (batch_size, obs_dim) = (npart * popsize, obs_dim) = (8000, ...)
         """
-        return -obs[:, -2]
+        # TODO: this is dense reward specifically
+        print("next obs: ", obs[:, :2])
+        print("goal: ", obs[:, 2:4])
+        return -torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
 
     @staticmethod
     def ac_cost_fn(acs):
