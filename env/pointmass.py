@@ -375,12 +375,20 @@ class PointmassEnv(gym.Env):
 
       if len(self.obs_vec) != 0:
         self.replay_buffer = np.concatenate([self.replay_buffer, self.obs_vec.copy()], axis=0)
-      self.obs_vec = [self._get_obs(self._normalize_obs(self.fixed_start.copy()))]
+      _, starting_rwd = self.get_dist_and_reward(self.fixed_start)
+      self.obs_vec = [np.concatenate([
+          self._normalize_obs(self.fixed_start.copy()),
+          [starting_rwd],
+          [0] # catastrophe
+        ], axis=-1)]
       self.state = self.fixed_start.copy()
       self.num_runs += 1
       self.wall_hits = 0
 
-      return self._get_obs(self._normalize_obs(self.state.copy()))
+      return np.concatenate([
+          self._normalize_obs(self.state.copy()),
+          [starting_rwd],
+          [0]], axis=-1)
 
   def reset_model(self, seed=None):
     if seed: self.seed(seed)
@@ -472,7 +480,7 @@ class PointmassEnv(gym.Env):
 
   def get_dist_and_reward(self, state):
     if (isinstance(state, torch.Tensor)):
-        state = state.detach().numpy()
+        state = state.detach().cpu().numpy()
     # print('State: ' + str(state))
     # print('Goal: ' + str(self.fixed_goal))
     dist = np.linalg.norm(state - self.fixed_goal, axis=(state.ndim-1))
@@ -488,6 +496,7 @@ class PointmassEnv(gym.Env):
     return dist, reward 
 
   def step(self, action):
+    print("stepping env")
     self.timesteps_left -= 1
     action = np.random.normal(action, self.action_noise)
     action = self._normalize_ac(action)
@@ -520,13 +529,16 @@ class PointmassEnv(gym.Env):
     # Some potential choices for random env variable:
     # 1. action_noise (currently in use, see _get_obs())
     # 2. resize_factor of the walls
-    extended_obs = self._get_obs(normalized_obs)
+    extended_obs = np.concatenate([
+            normalized_obs,
+            [reward],
+            [int(catastrophe)]
+        ], axis=-1)
 
     # catastrophe calculation: when agent hits wall, catastrophe.
     info = {}
     if catastrophe:
         self.wall_hits += 1
-        extended_obs[-1] = 1
         info['Catastrophe'] = True
     else:
         info['Catastrophe'] = False
@@ -538,30 +550,6 @@ class PointmassEnv(gym.Env):
     self.obs_vec.append(extended_obs.copy())
 
     return extended_obs, reward, done, info
-
-  def ac_rew(self, action):
-      self.timesteps_left -= 1
-      action = np.array(ACT_DICT[action])
-      action = np.random.normal(action, self.action_noise)
-      action = self._normalize_ac(action)
-
-      new_state = self.simulate_step(self.state, action)
-
-      dist = np.linalg.norm(self.state - self.fixed_goal)
-      done = (dist < self.epsilon) or (self.timesteps_left == 0)
-      ns = self._normalize_obs(self.state.copy())
-      self.obs_vec.append(ns.copy())
-
-      if self.dense_reward:
-          reward = -dist
-      else:
-          reward = int(dist < self.epsilon) - 1
-
-      return ns, reward, done, {}
-
-  def _get_obs(self, normalized_obs):
-    extended_obs = np.concatenate([normalized_obs, [self.action_noise, 0]], axis=-1)
-    return extended_obs
 
   @property
   def walls(self):
@@ -617,13 +605,19 @@ class PointmassEnv(gym.Env):
     self.plot_walls()
 
     obs_vec, goal = np.array(self.obs_vec), self.goal
+    # hardcoded: original maze is 5x5 so 1 unit normalized is 1 / 5
+    reached_goal = np.linalg.norm(obs_vec[-1, 0:1] - goal) < .2
     self.plt.plot(obs_vec[:, 0], obs_vec[:, 1], 'b-o', alpha=0.3)
     self.plt.scatter([obs_vec[0, 0]], [obs_vec[0, 1]], marker='+',
                 color='red', s=200, label='start')
-    self.plt.scatter([obs_vec[-1, 0]], [obs_vec[-1, 1]], marker='+',
+    self.plt.scatter([obs_vec[-1, 0]], [obs_vec[-1, 1]], marker='*' if reached_goal else '+',
                 color='green', s=200, label='end')
     self.plt.scatter([goal[0]], [goal[1]], marker='*',
                 color='green', s=200, label='goal')
+
+    # Annotate rewards
+    for i in range(len(obs_vec)):
+        self.plt.annotate(f"{obs_vec[i, 2]:.1f}", obs_vec[i, :2])
 
     # Draw a rewarded states for sparse rewards
     # Draw catastrophe states

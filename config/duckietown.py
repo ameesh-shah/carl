@@ -57,7 +57,11 @@ class DuckietownConfigModule:
 
     @staticmethod
     def targ_proc(obs, next_obs):   # This is to undo obs_postproc
-        return np.concatenate(((next_obs - obs)[..., :-3], next_obs[..., -3:-2]), axis=-1)
+        """Returns targ we want NN to predict."""
+        state_delta = (next_obs - obs)[..., :-3]
+        catastrophe_prob = next_obs[..., -3:-2]
+        # we *don't* want to predict next_obs[...,-2:] = (goalx, goaly)
+        return np.concatenate((state_delta, catastrophe_prob), axis=-1)
 
     @staticmethod
     def obs_cost_fn(obs):

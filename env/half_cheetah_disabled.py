@@ -123,6 +123,7 @@ class HalfCheetahEnv(MujocoEnv, utils.EzPickle, Serializable):
             self.reset_task(value=np.random.randint(1, self.action_dim - 1))
         else:
             self.reset_task(value=self.action_dim - 1)
+        import pdb; pdb.set_trace()
         return MujocoEnv.reset(self)
 
     def close(self):

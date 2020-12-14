@@ -49,6 +49,10 @@ class HalfCheetahConfigModule:
 
     @staticmethod
     def obs_postproc(obs, pred):
+        """Returns the next obs from the current `obs` and the output of the network `pred`.
+        Returns:
+
+        """
 
         assert isinstance(obs, torch.Tensor)
 
@@ -60,6 +64,10 @@ class HalfCheetahConfigModule:
 
     @staticmethod
     def targ_proc(obs, next_obs):
+        """Prepares the target to train the network from obs and next_obs.
+        Returns:
+            [state diff (next_obs - obs), reward of next_obs, catastrophe_prob of next_obs]
+        """
         if isinstance(obs, np.ndarray):
             return np.concatenate([next_obs[:, :-2] - obs[:, :-2], next_obs[:, -2:]], axis=1)
         elif isinstance(obs, torch.Tensor):
@@ -70,6 +78,7 @@ class HalfCheetahConfigModule:
 
     @staticmethod
     def obs_cost_fn(obs):
+        """Returns the environment reward for this obs (stored in obs[..., -2]."""
         # -2 dimension is env reward
         return -obs[:, -2]
 

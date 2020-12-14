@@ -80,18 +80,7 @@ class ExploreMPC(MPC):
             # next_obs shape: (npart * pop_size, obs_shape) = (8000, 4)
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
             # cost shape: (npart * pop_size, obs_shape)
-
-            # Reward calculation but do special treatment for PointmassEnv
-            if (isinstance(self.env, PointmassEnv)):
-                # print(next_obs)
-                _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
-                # print(reward)
-                # print(reward.shape)
-                # The cost should mostly be ones, if the reward is sparse.
-                cost = -1 * np.sum(reward) + self.ac_cost_fn(cur_acs)
-                cost = torch.Tensor(cost)
-            else:
-                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+            cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             if self.mode == 'test' and not self.no_catastrophe_pred:  # use catastrophe prediction during adaptation
                 # catastrophe_cost_fn masks `cost`

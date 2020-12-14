@@ -18,13 +18,18 @@ class PointmassEasyConfigModule:
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 10
-    MODEL_IN, MODEL_OUT = 4, 2 # In; (x, y, ac_x, ac_y), Out: (x, y)
+    MODEL_IN, MODEL_OUT = 4, 2
+    """
+    MODEL_IN: (x, y, ac_x, ac_y) 
+    MODEL_OUT (x, y)
+    """
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
     CATASTROPHE_COST = 10000
     MODEL_ENSEMBLE_SIZE = 5
     MODEL_HIDDEN_SIZE = 500
     MODEL_WEIGHT_DECAYS = [1e-4, 2.5e-4, 2.5e-4, 5e-4]
+    USE_DENSE_REWARD = True
 
     # Create and move this tensor to GPU so that
     # we do not waste time moving it repeatedly to GPU later
@@ -45,17 +50,16 @@ class PointmassEasyConfigModule:
             }
         }
 
-    # Pre-process the obs so that it can be fed into the ensemble
     @staticmethod
     def obs_preproc(obs):
-        # ..., action_noise, catastrophe
-        # The function simply removes the action_noise
+        """Preprocesses obs to construct input for the model.
+        Args:
+            obs: [xpos, ypos, reward, catastrophe] (see half-cheetah for a similar reference)
+        Returns:
+            [xpos, ypos]
+        """
         assert obs.shape[-1] == 4
-        if isinstance(obs, np.ndarray):
-            return obs[..., :-2]
-        else:
-            return obs[..., :-2]
-        return obs
+        return obs[..., :2]
 
     # This post-processing function is used in _predict_next_obs in MPC,
     # which will subsequently be used in _compile_cost.
@@ -66,32 +70,45 @@ class PointmassEasyConfigModule:
     # Also insert the current action_noise (obtained from obs) at index 2.
     @staticmethod
     def obs_postproc(obs, pred):
-        return torch.cat((pred[..., :-1], obs[..., 2:3], CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1) 
+        """Post processes obs to prepare next_obs for the next iteration (i.e. calculate the
+        next state from the predicted state diff in this case and add back the additional info
+        we carry around in obs)."""
+        pred_state_change = pred[..., :-1] # remove catastrophe_state dim
+        pred_next_state = obs[..., :2] + pred_state_change 
+        extra_data_reward = obs[..., -2:-1] # extra data we carry around in obs
+        return torch.cat((
+            pred_next_state,
+            extra_data_reward,
+            CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1) 
 
-    # This function prepares ground truth next states and catastrophe prob.
-    # In MPC, we see "self.targ_proc(obs[:-1], obs[1:])" being used. 
-    # 
-    # Target processing is the same as pre-processing, just pruning away
-    # the last two elements (x, y, __action_noise__, __catastrophe__)
     @staticmethod
     def targ_proc(obs, next_obs):
-        ret = next_obs[..., :-2]
-        return ret
+        """Constructs target for training model.
 
-    # Instead of using this, use reward from step().
+        Returns: (note we do NOT predict pendulum len)
+            (state delta, catastrophe_prob) 
+        """
+        state_delta = next_obs[..., :2] - obs[..., :2]
+        next_catastrophe_prob = next_obs[...,-1:]
+        return np.concatenate((state_delta, next_catastrophe_prob), axis=-1)
+
     @staticmethod
     def obs_cost_fn(obs):
-        """
+        """Gets the reward dim we conveniently store in obs. 
         Args:
             obs: shape (batch_size, obs_dim) = (npart * popsize, obs_dim) = (8000, ...)
-        Returns:
-            zeros (8000,)
         """
-        return torch.zeros(obs.shape[0], device=TORCH_DEVICE)
+        return -obs[:, -2]
 
     @staticmethod
     def ac_cost_fn(acs):
         return torch.zeros(acs.shape[0], device=TORCH_DEVICE)
+
+    @staticmethod
+    def catastrophe_cost_fn(obs, cost, percentile):
+        catastrophe_mask = obs[..., -1] > percentile / 100
+        cost[catastrophe_mask] += CONFIG_MODULE.CATASTROPHE_COST
+        return cost
 
     def nn_constructor(self, model_init_cfg):
 
@@ -112,10 +129,5 @@ class PointmassEasyConfigModule:
 
         return model
 
-    @staticmethod
-    def catastrophe_cost_fn(obs, cost, percentile):
-        catastrophe_mask = obs[..., -1] > percentile / 100
-        cost[catastrophe_mask] += CONFIG_MODULE.CATASTROPHE_COST
-        return cost
 
 CONFIG_MODULE = PointmassEasyConfigModule
