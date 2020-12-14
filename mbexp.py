@@ -62,6 +62,9 @@ def main(args):
         exp.policy.model.load_state_dict(torch.load(os.path.join(args.load_model_dir, 'weights')))
     if not os.path.exists(exp.logdir):
         os.makedirs(exp.logdir)
+        os.makedirs(os.path.join(exp.logdir, "TRAIN"))
+        os.makedirs(os.path.join(exp.logdir, "ADAPT"))
+
     with open(os.path.join(exp.logdir, "config.txt"), "w") as f:
         f.write(pprint.pformat(cfg.toDict()))
 

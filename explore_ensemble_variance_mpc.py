@@ -20,65 +20,6 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
         # Override cost function to be exploration reward
         self.optimizer.cost_function = self._compile_cost
 
-    def _predict_next_obs(self, obs, acs, return_mean_var=False):
-        proc_obs = self.obs_preproc(obs)
-
-        assert self.prop_mode == 'TSinf'
-        proc_obs = self._expand_to_ts_format(proc_obs)
-        acs = self._expand_to_ts_format(acs)
-
-        inputs = torch.cat((proc_obs, acs), dim=-1)
-
-        mean, var, catastrophe_prob = self.model(inputs)
-
-        predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
-
-        predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
-        print("IN PRED NEXT OBS")
-#        import pdb; pdb.set_trace()
-
-        # TS Optimization: Remove additional dimension
-        predictions = self._flatten_to_matrix(predictions)
-
-        if return_mean_var:
-            return self.obs_postproc(obs, predictions), (mean, var)
-
-        return self.obs_postproc(obs, predictions)
-
-    @torch.no_grad()
-    def _compile_cost(self, ac_seqs):
-        # ac_seqs shape: (popsize, plan_hor, ac_dim)
-        # Preprocess
-        print("compile_cost")
-        ac_seqs = torch.from_numpy(ac_seqs).float().to(TORCH_DEVICE)
-        # Reshape ac_seqs so that it's amenable to parallel compute
-        # ac_seqs final shape: (self.plan_hor, npart * pop_size, ac_dim) = (25, 8000, 1 [cartpole])
-        ac_seqs = ac_seqs.view(-1, self.plan_hor, self.dU)
-        transposed = ac_seqs.transpose(0, 1)
-        expanded = transposed[:, :, None]
-        tiled = expanded.expand(-1, -1, self.npart, -1)
-        ac_seqs = tiled.contiguous().view(self.plan_hor, -1, self.dU)
-        # Expand current observation
-        # self.sy_cur_obs: (obs_dim,)
-        # cur_obs final shape: (npart * pop_size, obs_dim) = (8000, 1 [cartpole]) 
-        cur_obs = torch.from_numpy(self.sy_cur_obs).float().to(TORCH_DEVICE)
-        
-        print('Current observation: ' + str(cur_obs))
-        print('Action sequence: ' + str(ac_seqs))
-
-        cur_obs = cur_obs[None]
-        cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
-
-        # cost: (popsize, npart) (one cost per population sample / particle)
-        intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
-        supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
-
-        print('Intrinsic cost: ' + str(intrinsic_cost))
-        print('Supervised cost: ' + str(supervised_cost))
-
-        # TODO: make weight on each a parameter
-        return (intrinsic_cost + supervised_cost) / 2.0
-
     @torch.no_grad()
     def _compile_cost_intrinsic(self, ac_seqs, cur_obs):
         """Computes intrinsic exploration cost (negated exploration_reward). Incentivize agents to visit states
@@ -102,11 +43,6 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
             # mean, var shape: (num_nets, npart * popsize / num_nets, obs_shape) = (5, 1600, 4)
             # calculate variance over all bootstraps
             next_obs, (mean, var) = self._predict_next_obs(cur_obs, cur_acs, return_mean_var=True)
-#            import pdb; pdb.set_trace()
-            if torch.max(mean) >= 3:
-                print("MEAN TOO BIG")
-                print(torch.max(mean))
- #               import pdb; pdb.set_trace()
 
             # each of `popsize` CEM samples is a different action, so we shouldn't avg states over popsize
             # mean: (num_nets, npart / num_nets, popsize, env obs_shape [without extra obs like catastrophe_prob])

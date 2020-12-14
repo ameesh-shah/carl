@@ -222,10 +222,6 @@ class MPC:
             new_train_in.append(temp)
             new_train_targs.append(self.targ_proc(obs[:-1], obs[1:]))
         
-        # print('train_in and train_targs')
-        # print(new_train_in)
-        # print(new_train_targs)
-
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
 
         # FIXME: add catastrophe label and preproc / postproc function
@@ -265,7 +261,7 @@ class MPC:
 
                 inv_var = torch.exp(-logvar)
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
-                print("=== State loss: ", state_loss)
+                # sum over ensembles, average over all other dimensions
                 state_loss = state_loss.mean(-1).mean(-1).sum()
 
                 if not self.no_catastrophe_pred:
@@ -290,7 +286,6 @@ class MPC:
                 val_catastrophe_targ = val_targ[..., -1:]
                 # FIXME: add catastrophe prob
                 mean, _, catastrophe_prob = self.model(val_in)
-                print("max val mean: ", torch.max(mean))
                 mse_losses = ((mean - val_state_targ) ** 2).mean(-1).mean(-1)
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(val_catastrophe_targ == 1)
@@ -358,7 +353,6 @@ class MPC:
 
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
-                print("returning act from buffer ", t)
                 if d_random:
                     return action
                 return self.possible_actions[np.argmax(action)]
@@ -367,7 +361,6 @@ class MPC:
             # (Resolved) What is soln here?
             # It is an ndarray of shape (?, 25, 5)
             # with 5 being the probability of actions
-            print("act")
             soln = self.optimizer.obtain_solution(self.prev_sol, self.possible_actions)
 
             if d_random:
@@ -387,7 +380,6 @@ class MPC:
                 # self.ac_buf = soln[:1].reshape(-1, self.dU)
                 self.ac_buf = self.env.possible_actions[np.argmax(soln[:1])]
 
-            print("returning act ", t)
             return self.act(obs, t)
 
         else:
@@ -427,8 +419,10 @@ class MPC:
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(nopt * self.npart, -1)
         costs = torch.zeros(nopt, self.npart, device=TORCH_DEVICE)
+        all_obs = []
         for t in trange(self.plan_hor):
             cur_acs = ac_seqs[t]
+            all_obs.append(cur_obs)
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
 
             # FIXME: for trajectories that reach the goal and
@@ -439,17 +433,9 @@ class MPC:
             # This is used to prevent predicted states from going
             # out of bounds. If it is out of bound, fix the mean
             # on the boundary and reset std to 0.
-            if (isinstance(self.env, PointmassEnv)):
-                #print(next_obs)
-                print(torch.max(next_obs))
-                _, reward = self.env.get_dist_and_reward(next_obs[..., :2])
-                print(reward)
-                print(reward.shape)
-                # The cost should mostly be ones, since
-                # the reward is sparse.
-                cost = torch.from_numpy(-reward).float().to(TORCH_DEVICE) + self.ac_cost_fn(cur_acs)
-            else:
-                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
+#            print("max next obs: ", torch.max(next_obs).cpu().numpy(), " // mean ", torch.mean(next_obs).cpu().numpy())
+            cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             # One difference between CARL and this work is that
             # during the exploration phase of this work, the agent is aware of safety
@@ -482,49 +468,30 @@ class MPC:
         return mean_cost.detach().cpu().numpy()
 
     # FIXME: predicts non-sensical states
-    def _predict_next_obs(self, obs, acs):
-        """
-        print('===== Inside predict next obs ======')
-        print('obs: ' + str(obs))
-        print('acs: ' + str(acs))
-        """
+    def _predict_next_obs(self, obs, acs, return_mean_var=False):
         proc_obs = self.obs_preproc(obs)
-        """
-        print('proc_obs: ' + str(proc_obs))
-        print(proc_obs.shape)
-        """
 
         # Can the tensor format screws things up?
         assert self.prop_mode == 'TSinf'
         proc_obs = self._expand_to_ts_format(proc_obs)
 
-        """
-        print('TS proc_obs: ' + str(proc_obs))
-        print(proc_obs.shape)
-        """
         acs = self._expand_to_ts_format(acs)
 
         inputs = torch.cat((proc_obs, acs), dim=-1)
 
         # FIXME: Why does the mean have 3 values?
         mean, var, catastrophe_prob = self.model(inputs)
-        """
-        print('predicted mean: ' + str(mean))
-        print(mean.shape)
-        print('predicted var: ' + str(var))
-        print('predicted catastrophe prob: ' + str(catastrophe_prob))
-        """
+
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
-        # print('predictions: ' + str(predictions))
 
         predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
-        # print('predictions: ' + str(predictions))
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
-        # print('predictions: ' + str(predictions))
 
         post = self.obs_postproc(obs, predictions)
-        # print('post: ' + str(post))
+
+        if return_mean_var:
+            return post, (mean, var)
 
         return post
 

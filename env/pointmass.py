@@ -496,7 +496,6 @@ class PointmassEnv(gym.Env):
     return dist, reward 
 
   def step(self, action):
-    print("stepping env")
     self.timesteps_left -= 1
     action = np.random.normal(action, self.action_noise)
     action = self._normalize_ac(action)
@@ -517,9 +516,7 @@ class PointmassEnv(gym.Env):
 
     # Compute distance between current state and goal state
     # dist = np.linalg.norm(self.state - self.fixed_goal)
-    print(self.state)
     dist, reward = self.get_dist_and_reward(self.state)
-    print(dist)
     done = (dist < self.epsilon) or (self.timesteps_left == 0)
 
     # Normalized original obs

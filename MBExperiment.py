@@ -168,7 +168,17 @@ class MBExperiment:
             percentile = self.training_percentile
             self.policy.unsafe_pretraining = True # start off by default
             print_str = "TRAIN"
+        last_tick = perf_counter()
+
+        if (isinstance(self.env, PointmassEnv)):
+	    # set logdir for Pointmass
+            self.env.set_logdir(f"{self.logdir}/{print_str}/")
+
+
         for i in trange(*iteration_range):
+            print(f"========= TIME ELAPSED per iter f{perf_counter() - last_tick}")
+            last_tick = perf_counter()
+
             if i % 2 == 0 and adaptation:
                 self.run_test_evals(i)
             
@@ -221,6 +231,7 @@ class MBExperiment:
             if self.policy.catastrophe_loss is not None:
                 self.writer.add_scalar('%s-catastrophe-loss' % print_str,
                                        self.policy.catastrophe_loss, i)
+
 
     def run_test_evals(self, adaptation_iteration):
         print("Beginning evaluation rollouts.")

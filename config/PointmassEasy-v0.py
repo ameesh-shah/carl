@@ -14,10 +14,10 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 class PointmassEasyConfigModule:
     ENV_NAME = "PointmassEasy-v0"
     TASK_HORIZON = 150
-    NTRAIN_ITERS = 50
+    NTRAIN_ITERS = 100
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
-    PLAN_HOR = 10
+    PLAN_HOR = 20
     MODEL_IN, MODEL_OUT = 4, 2
     """
     MODEL_IN: (x, y, ac_x, ac_y) 
