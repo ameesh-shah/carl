@@ -289,7 +289,7 @@ class PointmassEnv(gym.Env):
       walls = 'Maze5x5'
       resize_factor = 2
       self.fixed_start = np.array([0.5, 0.5]) * resize_factor
-      self.fixed_goal = np.array([0.5, 4.5]) * resize_factor
+      self.fixed_goal = np.array([4.5, 4.5]) * resize_factor
       self.max_episode_steps = 50
     elif difficulty == 1:
       walls = 'Maze6x6'
