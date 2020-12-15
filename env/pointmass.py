@@ -260,7 +260,7 @@ class PointmassEnv(gym.Env):
 
   def __init__(self,
                difficulty=1,
-               dense_reward=True,
+               dense_reward=False,
                # action_noise=0.5
                action_noise=0
                ):
@@ -524,7 +524,6 @@ class PointmassEnv(gym.Env):
     # catastrophe calculation: when agent hits wall, catastrophe.
     info = {}
     if catastrophe:
-        self.wall_hits += 1
         info['Catastrophe'] = True
     else:
         info['Catastrophe'] = False
@@ -604,7 +603,8 @@ class PointmassEnv(gym.Env):
     # Annotate rewards
     for i in range(len(obs_vec)):
         unnormalized_obs = self._unnormalize_obs(obs_vec[i, :2])
-        self.plt.annotate(f"{obs_vec[i, 2]:.1f}", self.get_dist_and_reward(unnormalized_obs))
+        _, rwd = self.get_dist_and_reward(unnormalized_obs)
+        self.plt.annotate(rwd, obs_vec[i, :2])
 
     # Draw a rewarded states for sparse rewards
     # Draw catastrophe states

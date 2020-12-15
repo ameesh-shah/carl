@@ -17,7 +17,7 @@ class PointmassConfigModule:
     NTRAIN_ITERS = 25
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
-    PLAN_HOR = 2
+    PLAN_HOR = 10
     MODEL_IN, MODEL_OUT = 4, 2
     """
     MODEL_IN: (x, y, ac_x, ac_y) 
@@ -29,7 +29,9 @@ class PointmassConfigModule:
     MODEL_ENSEMBLE_SIZE = 5
     MODEL_HIDDEN_SIZE = 500
     MODEL_WEIGHT_DECAYS = [1e-4, 2.5e-4, 2.5e-4, 5e-4]
-    USE_DENSE_REWARD = True
+    USE_DENSE_REWARD = False
+    # how close you have to be to goal (in normalized obs space) to get sparse reward
+    REACHED_GOAL_EPS = .2  # 1 unit in original 5x5 = .2 units in 1x1
 
     # Create and move this tensor to GPU so that
     # we do not waste time moving it repeatedly to GPU later
@@ -98,9 +100,13 @@ class PointmassConfigModule:
         Args:
             obs: shape (batch_size, obs_dim) = (npart * popsize, obs_dim) = (8000, ...)
         """
-        # TODO: this is dense reward specifically
-        # print("next obs: ", obs[:, :2])
-        return torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
+        print("next obs: ", obs[:, :2])
+        if CONFIG_MODULE.USE_DENSE_REWARD:
+            return torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
+        sparse_cost = torch.any( # any dimension is far from goal
+                torch.abs(obs[:, :2] - obs[:, 2:4]) > CONFIG_MODULE.REACHED_GOAL_EPS, 
+                dim=-1).to(torch.float32) # 0 if close to goal, 1 otherwise
+        return sparse_cost
 
     @staticmethod
     def ac_cost_fn(acs):
