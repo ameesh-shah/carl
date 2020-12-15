@@ -37,6 +37,10 @@ class Agent:
             A.append(policy_action)
             times.append(time.time() - start)
             obs, reward, done, info = env.step(policy_action) # A[t]
+            print("=== taking action ", policy_action) 
+            print("cur obs: ", O[t]) 
+            print("actual next obs: ", obs)
+
             O.append(obs)
             reward_sum += reward
             rewards.append(reward)
@@ -46,6 +50,15 @@ class Agent:
             env.close()
         print("Average action selection time: ", np.mean(times))
         print("Rollout length: ", len(A))
+
+        # (resolved) a rather strange bug. In Pointmass env, np.array(O)
+        # returns an ndarray of shape (151,), i.e. ndim=1. But in cartpole, the same
+        # code returns an ndarray of shape (201, 6), i.e. ndim=2.
+        # 
+        # env.reset() in pointmass did not return extended state, which caused the
+        # 1st element of the list to have a different shape than others.
+        # Ndarray therefore did not interpret the 2nd dimension as part of its shape.
+
         return {
             "obs": np.array(O),
             "ac": np.array(A),

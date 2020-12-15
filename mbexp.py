@@ -14,6 +14,7 @@ from explore_ensemble_variance_mpc import ExploreEnsembleVarianceMPC
 from explore_rnd_mpc import ExploreRNDMPC
 from config import create_config
 import env # We run this so that the env is registered
+from env.pointmass import PointmassEnv
 
 import torch
 import numpy as np
@@ -38,6 +39,11 @@ def main(args):
     cfg = create_config(args)
     cfg.pprint()
 
+    # Set env for PointmassEnv 
+    if (isinstance(cfg.ctrl_cfg.env, PointmassEnv)):
+        # Change optimizer to discrete CEM
+        cfg.ctrl_cfg.opt_cfg.mode = 'DCEM'
+
     #assert args.ctrl_type == 'MPC'
     if args.ctrl_type == 'PuP':
         print("Using Pets-using-Pets Policy.")
@@ -56,6 +62,9 @@ def main(args):
         exp.policy.model.load_state_dict(torch.load(os.path.join(args.load_model_dir, 'weights')))
     if not os.path.exists(exp.logdir):
         os.makedirs(exp.logdir)
+        os.makedirs(os.path.join(exp.logdir, "TRAIN"))
+        os.makedirs(os.path.join(exp.logdir, "ADAPT"))
+
     with open(os.path.join(exp.logdir, "config.txt"), "w") as f:
         f.write(pprint.pformat(cfg.toDict()))
 

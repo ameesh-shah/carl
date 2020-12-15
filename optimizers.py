@@ -171,11 +171,23 @@ class DiscreteCEMOptimizer(Optimizer):
     def reset(self):
         pass
 
+    # This function should return concrete action (e.g. [-1, 0])
+    # instead of action id, because the action will be fed into 
+    # _predict_next_obs
     def sample_from_categorical(self, probs, possible_actions, num_samples):
+        """
+        Args:
+            probs (prev_sol): shape (self.plan_hor, num_poss_acs), ac probabilities for each step of plan_hor
+            possible_actions: list of possible actions, length `num_poss_acs`
+            num_samples: number of samples to draw
+        Returns:
+            Draws `num_samples`, each sample with `self.plan_hor` actions drawn from the prob dist of acs for that timestep
+            samples: shape (num_samples, self.plan_hor, ac_dim)
+        """
         probs += 0.001 # prevent torch from thinking anything is < 0
-        samples = torch.distributions.categorical.Categorical(probs=torch.from_numpy(probs)).sample(
-            [num_samples])
-        samples = possible_actions[samples.numpy()].astype(np.float32)
+        # shape (num_samples, self.plan_hor)
+        samples = torch.distributions.categorical.Categorical(probs=torch.from_numpy(probs)).sample([num_samples])
+        samples = np.take(possible_actions, samples.numpy(), axis=0).astype(np.float32)
         return samples
 
     # performing one hot encoding
@@ -183,19 +195,48 @@ class DiscreteCEMOptimizer(Optimizer):
         """Optimizes the cost function using the provided initial candidate distribution
 
         Arguments:
-            init_mean (np.ndarray): The mean of the initial candidate distribution.
+            init_mean (np.ndarray): The mean of the initial candidate distribution. shape (plan_hor, ac_dim)
             possible_actions (np.ndarray): The possible actions this discrete env allows
+        Returns:
+            mean action probability (across elite samples) for the horizon
+                (plan_hor, ac_dim)
         """
         mean, t = init_mean, 0
         while t < self.max_iters:
-            samples = self.sample_from_categorical(mean, possible_actions, self.popsize)
-            samples = samples.reshape(self.popsize, self.sol_dim)
-            costs = self.cost_function(samples)
-            elites = samples[np.argsort(costs)][:self.num_elites].reshape(self.num_elites, *mean.shape)
-            new_mean = np.mean(elites, axis=0)
-            mean = self.alpha * mean + (1 - self.alpha) * new_mean
-            normalization_factor = mean.sum(axis=1)
-            mean = mean / normalization_factor[:, np.newaxis]
-            t += 1
 
+            # samples: shape (popsize, plan_hor, ac_dim)
+            samples = self.sample_from_categorical(mean, possible_actions, self.popsize)
+            assert samples.shape == (self.popsize, mean.shape[0], possible_actions[0].shape[-1])
+
+            costs = self.cost_function(samples)
+            elites = samples[np.argsort(costs)][:self.num_elites]
+
+            # Cast actions to probabilities
+            # Elites are concrete action samples. [0, -1],
+            # not [0.2, 0.2, 0.2, 0.2, 0.2]
+            # FIXME: this code currently only works for Pointmass.
+            # Need to make it compatible with all discrete environments. 
+            elites_prob = np.zeros((self.num_elites, *mean.shape))
+            for i in range(elites.shape[0]): # num_elites
+                for j in range(elites.shape[1]): # plan_hor
+                    if np.array_equal(elites[i, j], np.array([0,0])):
+                        elites_prob[i, j, 0] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([0,-1])):
+                        elites_prob[i, j, 1] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([0,1])):
+                        elites_prob[i, j, 2] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([-1,0])):
+                        elites_prob[i, j, 3] = 1.0
+                    elif np.array_equal(elites[i, j], np.array([1,0])):
+                        elites_prob[i, j, 4] = 1.0
+            new_mean = np.mean(elites_prob, axis=0)
+
+            # Update mean with a constant alpha term
+            mean = self.alpha * mean + (1 - self.alpha) * new_mean
+
+            normalization_factor = mean.sum(axis=-1)
+            mean = mean / normalization_factor[:, np.newaxis]
+
+            t += 1
+        print("soln: ", mean)
         return mean

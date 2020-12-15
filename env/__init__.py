@@ -14,3 +14,27 @@ register(
     id='MBRLHalfCheetahDisabled-v0',
     entry_point='env.half_cheetah_disabled:HalfCheetahEnv'
 )
+
+register(
+    id='PointmassEasy-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 0}
+)
+
+register(
+    id='PointmassMedium-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 1}
+)
+
+register(
+    id='PointmassHard-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 2}
+)
+
+register(
+    id='PointmassVeryHard-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 3}
+)

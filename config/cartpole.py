@@ -15,10 +15,14 @@ class CartPoleConfigModule:
     ENV_NAME = "MBRLCartPole-v0"
     TASK_HORIZON = 200
     NTRAIN_ITERS = 50
-    NROLLOUTS_PER_ITER = 1
+    NROLLOUTS_PER_ITER = 100
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 6, 4
+    """
+    MODEL_IN: (sin_angle, cos_angle, xpos, xvel, angle_vel, action)
+    MODEL_OUT: (xpos, angle, xvel, angle_vel) - raw env obs
+    """
     GP_NINDUCING_POINTS = 200
     CATASTROPHE_SIGMOID = torch.nn.Sigmoid()
     CATASTROPHE_COST = 10000
@@ -42,21 +46,54 @@ class CartPoleConfigModule:
             }
         }
 
+    # This method takes an input of element shape self.dO == 6.
+    # which includes pendulum length and prob.
+    # Then it outputs a array of elements with shape == 5,
+    # which becomes the train_in and does not include length and prob.
     @staticmethod
     def obs_preproc(obs):
+        """Removes safety-specific dimensions before feeding into model.
+        Args:
+            obs: shape (cart xpos, angle, x vel (?), angle vel (?), pendulum_len, catastrophe prob (or 1/0 from env) 
+        Returns:
+            ret: shape [sin(angle), cos(angle), xpos, x vel, angle vel) 
+        """
         #.... pendulum_length, catastrophe
+        xpos = obs[:, :1]
+        angle = obs[:, 1:2]
+        vel = obs[:, 2:-2]
         if isinstance(obs, np.ndarray):
-            return np.concatenate([np.sin(obs[:, 1:2]), np.cos(obs[:, 1:2]), obs[:, :1], obs[:, 2:-2]], axis=1)
+            ret = np.concatenate([np.sin(angle), np.cos(angle), xpos, vel], axis=1)
+            return ret
         else:
-            return torch.cat([torch.sin(obs[:, 1:2]), torch.cos(obs[:, 1:2]), obs[:, :1], obs[:, 2:-2]], dim=1)
+            return torch.cat([torch.sin(angle), torch.cos(angle), xpos, vel], dim=1)
 
     @staticmethod
     def obs_postproc(obs, pred):
-        return torch.cat((obs[..., :-2] + pred[..., :-1], obs[..., -2:-1],
-                          CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:])), dim=-1)
+        """
+        Args:
+            obs: (cart xpos, angle, x vel (?), angle vel (?), pendulum_len, catastrophe prob (or 1/0 from env) 
+            pred: (CHANGE IN (cart xpos, angle, xvel, angle vel), catastrophe prob)
+        Returns:
+            (
+            (new xpos, angle, xvel, angle vel, pred_xpos, pred_angle, pred_xvel, pred_anglevel, 
+
+        """
+        pred_state_change = pred[..., :-1] # remove catastrophe_prob dim
+        pred_next_state = obs[..., :-2] + pred_state_change # remove pendulum_len, catastrophe prob from obs
+        pendulum_len = obs[..., -2:-1]
+        catastrophe_prob = CONFIG_MODULE.CATASTROPHE_SIGMOID(pred[..., -1:]) 
+        return torch.cat((pred_next_state, pendulum_len, catastrophe_prob), dim=-1)
 
     @staticmethod
     def targ_proc(obs, next_obs):   # This is to undo obs_postproc
+        """
+        Args:
+            obs, next_obs: (xpos, angle, xvel, anglevel, pendulum_len, catastrophe_prob)
+        Returns: (note we do NOT predict pendulum len)
+            (state delta, catastrophe_prob) 
+        """
+        import pdb; pdb.set_trace()
         if isinstance(obs, np.ndarray):
             return np.concatenate([next_obs[..., :-2] - obs[..., :-2], next_obs[..., -1:]], axis=-1)
         elif isinstance(obs, torch.Tensor):
@@ -64,6 +101,10 @@ class CartPoleConfigModule:
 
     @staticmethod
     def obs_cost_fn(obs):
+        """
+        Args:
+            obs: shape (batch_size, obs_dim) = (popsize [400] * npart[20], obs_dim)
+        """
         ee_pos, ideal_pos = CONFIG_MODULE._get_ee_pos(obs)
 
         ee_pos -= ideal_pos
@@ -78,6 +119,12 @@ class CartPoleConfigModule:
 
     @staticmethod
     def ac_cost_fn(acs):
+        """
+        Args:
+            obs: shape (batch_size, ac_dim) = (popsize * npart, ac_dim)
+        Returns:
+            
+        """
         return 0.01 * (acs ** 2).sum(dim=1)
 
     @staticmethod

@@ -18,6 +18,8 @@ import torch
 import pytorch_util as ptu
 
 
+from env.pointmass import PointmassEnv
+
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def shuffle_rows(arr):
@@ -82,7 +84,11 @@ class MPC:
                     .percentile (float): The percentile used for either catastrophic state or reward-based
                         risk aversion.
         """
-        self.dO, self.dU = params.env.observation_space.shape[0], params.env.action_space.shape[0]
+        self.env = params.env
+        if (isinstance(params.env, PointmassEnv)):
+            self.dO, self.dU = params.env.obs_dim, params.env.ac_dim
+        else:
+            self.dO, self.dU = params.env.observation_space.shape[0], params.env.action_space.shape[0]
         self.ac_ub, self.ac_lb = params.env.action_space.high, params.env.action_space.low
         self.ac_ub = np.minimum(self.ac_ub, params.get("ac_ub", self.ac_ub))
         self.ac_lb = np.maximum(self.ac_lb, params.get("ac_lb", self.ac_lb))
@@ -133,9 +139,26 @@ class MPC:
         # Controller state variables
         self.has_been_trained = params.prop_cfg.get("model_pretrained", False)
         self.ac_buf = np.array([]).reshape(0, self.dU)
-        self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+
+        # Init prev_sol based on optimizer type
+        #self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+        if isinstance(self.optimizer, DiscreteRandomOptimizer):
+            self.prev_sol = np.ones(shape=[self.plan_hor]) * (1 / self.plan_hor)
+        elif isinstance(self.optimizer, DiscreteCEMOptimizer):
+            # self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
+            self.prev_sol = np.ones(shape = [self.plan_hor, self.env.action_space.n]) * (1 / self.env.action_space.n)
+        else:
+            self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+
         self.init_var = np.tile(np.square(self.ac_ub - self.ac_lb) / 16, [self.plan_hor])
+        
+        # Input dimension is ac_dim + obs_dim
+        # For pointmass, it is 4 (2+2).
         self.train_in = np.array([]).reshape(0, self.dU + self.obs_preproc(np.zeros([1, self.dO])).shape[-1])
+        # FIXME: correct train_in shape (0, 4)
+        # but only returns (0, 3)
+        # Obs only has (x, y)
+
         self.gravity_targs = np.array([]).reshape(0, 1)
         self.train_targs = np.array([]).reshape(
             0, self.targ_proc(np.zeros([1, self.dO]), np.zeros([1, self.dO])).shape[-1]
@@ -174,13 +197,34 @@ class MPC:
 
         Returns: None.
         """
-
         # Construct new training points and add to training set
         new_train_in, new_train_targs = [], []
         for obs, acs in zip(obs_trajs, acs_trajs):
-            new_train_in.append(np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1))
+            # Each obs/acs is a trajectory of state/action.
+            #
+            # The train_in variable stores the input array
+            # to the ensemble network.
+            #
+            # When agent samples, the obs returned contains
+            # extra info (e.g. cartpole length, catastrophe, etc.).
+            # We use the obs_preproc function to remove them,
+            # then concatenate the acs to the obs and feed
+            # the concatenated input into the ensemble network
+            #
+            # obs[:-1] is removing the last state in the obs trajectory.
+            #
+            # There are also additional env params in an observation
+            # such as cartpole_length (in cartpole), 
+            # action_noise (pointmass). We use self.obs_preproc to
+            # prepare an input to the ensemble network.
+
+            temp = np.concatenate([self.obs_preproc(obs[:-1]), acs], axis=-1)
+            new_train_in.append(temp)
             new_train_targs.append(self.targ_proc(obs[:-1], obs[1:]))
+        
         self.train_in = np.concatenate([self.train_in] + new_train_in, axis=0)
+
+        # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
         # Train the model
         self.has_been_trained = True
@@ -207,13 +251,19 @@ class MPC:
                 loss += self.model.compute_decays()
 
                 train_in = torch.from_numpy(self.train_in[batch_idxs]).to(TORCH_DEVICE).float()
+
+                # Receives train targs and decompose into state targ and catastrophe targ
                 train_targ = torch.from_numpy(self.train_targs[batch_idxs]).to(TORCH_DEVICE).float()
                 state_targ = train_targ[..., :-1]
                 catastrophe_targ = train_targ[..., -1:]
+
                 mean, logvar, catastrophe_prob = self.model(train_in, ret_logvar=True)
+
                 inv_var = torch.exp(-logvar)
                 state_loss = ((mean - state_targ) ** 2) * inv_var + logvar
+                # sum over ensembles, average over all other dimensions
                 state_loss = state_loss.mean(-1).mean(-1).sum()
+
                 if not self.no_catastrophe_pred:
                     num_catastrophes = torch.sum(catastrophe_targ == 1)
                     if num_catastrophes == 0:
@@ -234,6 +284,7 @@ class MPC:
                 val_targ = torch.from_numpy(self.train_targs[idxs[:, :5000]]).to(TORCH_DEVICE).float()
                 val_state_targ = val_targ[..., :-1]
                 val_catastrophe_targ = val_targ[..., -1:]
+                # FIXME: add catastrophe prob
                 mean, _, catastrophe_prob = self.model(val_in)
                 mse_losses = ((mean - val_state_targ) ** 2).mean(-1).mean(-1)
                 if not self.no_catastrophe_pred:
@@ -268,7 +319,12 @@ class MPC:
         if isinstance(self.optimizer, DiscreteRandomOptimizer):
             self.prev_sol = np.ones(shape=[self.plan_hor]) * (1 / self.plan_hor)
         elif isinstance(self.optimizer, DiscreteCEMOptimizer):
-            self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
+            # FIXME: this looks suspicious
+            # This looks wrong, since it is not how it is originally initialized.
+            # self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
+            # self.prev_sol = np.ones(shape = [self.plan_hor, self.dU]) * (1 / self.dU)
+            self.prev_sol = np.ones(shape = [self.plan_hor, self.env.action_space.n]) * (1 / self.env.action_space.n)
+
         else:
             self.prev_sol = np.tile((self.ac_lb + self.ac_ub) / 2, [self.plan_hor])
         self.optimizer.reset()
@@ -289,20 +345,43 @@ class MPC:
         cem = isinstance(self.optimizer, CEMOptimizer)
         if d_random or d_cem:
             if not self.has_been_trained:
-                return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[-1]), size=1)[0]]
+                # (Resolved): original code, below, is wrong about arange part. 
+                # Should select the first element of the shape instead of the last.
+                # return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[-1]), size=1)[0]]
+                print('Has not been trained. Performing random actions.')
+                return self.possible_actions[np.random.choice(np.arange(self.possible_actions.shape[0]), size=1)[0]]
+
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
-                if d_random:
-                    return action
-                return self.possible_actions[np.argmax(action)]
+                print("picked act: ", action)
+                return action
             self.sy_cur_obs = obs
+
+            # (Resolved) What is soln here?
+            # It is an ndarray of shape (?, 25, 5)
+            # with 5 being the probability of actions
             soln = self.optimizer.obtain_solution(self.prev_sol, self.possible_actions)
+
             if d_random:
                 self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
                 self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
             elif d_cem:
-                self.prev_sol = np.concatenate([np.copy(soln)[1:], np.zeros((1, self.per * self.dU))])
-                self.ac_buf = soln[:1].reshape(-1, self.dU)
+
+                # (Resolved) I don't understand what this concat is doing.
+                # After we are done with the current action, we pop it
+                # and append a new entry.
+                # self.prev_sol: shape (plan_hor, self.dU)
+                # soln: shape (plan_hor, self.env.action_space.n):  probabilities over all discrete actions
+                # all_remaining_actions: shape ((plan_hor - self.per), env.action_space.n): actions we discard bc we only take the first `self.per` actions
+                all_remaining_actions = np.copy(soln)[self.per:] 
+                # self.prev_sol: shape (plan_hor, env.action_space.n), add rest of acs in horizon as zeros
+                self.prev_sol = np.concatenate([all_remaining_actions, np.zeros((self.per, self.env.action_space.n))], axis=0)
+
+                # only put self.per actions into the buffer
+                # next_acs: (self.per, self.dU)
+                next_acs = np.take(self.env.possible_actions, np.argmax(soln[:self.per], axis=-1), axis=0)
+                # self.ac_buf: (self.per, self.dU)
+                self.ac_buf = next_acs
 
             return self.act(obs, t)
 
@@ -317,10 +396,14 @@ class MPC:
             self.sy_cur_obs = obs
 
             # `optimizer.obtain_solution` calls this MPC's `compile_cost`, which computes the cost of the current `self.sy_cur_obs` (loool)
+            # soln: (plan_hor,)
             soln = self.optimizer.obtain_solution(self.prev_sol, self.init_var)
             # we reoptimize the ac seq every `self.per` timesteps, so get the next batch of acs
+            # prev_soln: (plan_hor,)
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
+            # ac_buf: (self.per, ac_dim)
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
+            import pdb; pdb.set_trace()
 
             return self.act(obs, t)
 
@@ -343,16 +426,36 @@ class MPC:
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(nopt * self.npart, -1)
         costs = torch.zeros(nopt, self.npart, device=TORCH_DEVICE)
-        for t in range(self.plan_hor):
+        all_obs = []
+        for t in trange(self.plan_hor):
             cur_acs = ac_seqs[t]
+            all_obs.append(cur_obs)
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
+
+            # FIXME: for trajectories that reach the goal and
+            # terminate early, they are not rewarded for that.
+            # For sparse reward, this is worse because the good
+            # and the bad trajectories are zeros.
+            # FIXME: can we set boundaries during planning as well?
+            # This is used to prevent predicted states from going
+            # out of bounds. If it is out of bound, fix the mean
+            # on the boundary and reset std to 0.
+
+#            print("max next obs: ", torch.max(next_obs).cpu().numpy(), " // mean ", torch.mean(next_obs).cpu().numpy())
+            print("cur_obs: ", cur_obs)
+            print("acs: ", cur_acs)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+
+            # One difference between CARL and this work is that
+            # during the exploration phase of this work, the agent is aware of safety
+            # during exploration, instead of just at test time.
             if self.mode == 'test' and not self.no_catastrophe_pred: #use catastrophe prediction during adaptation
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
+
             cost = cost.view(-1, self.npart)
-            import pdb; pdb.set_trace()
             costs += cost
             cur_obs = self.obs_postproc2(next_obs)
+
         # replace nan with high cost
         costs[costs != costs] = 1e6
         if self.no_catastrophe_pred:
@@ -371,27 +474,36 @@ class MPC:
         else:
             # cost shape: (popsize, npart)
             mean_cost = costs.mean(dim=1)
+        print("mean cost: ", mean_cost.mean())
         return mean_cost.detach().cpu().numpy()
 
-    def _predict_next_obs(self, obs, acs):
+    # FIXME: predicts non-sensical states
+    def _predict_next_obs(self, obs, acs, return_mean_var=False):
         proc_obs = self.obs_preproc(obs)
 
+        # Can the tensor format screws things up?
         assert self.prop_mode == 'TSinf'
         proc_obs = self._expand_to_ts_format(proc_obs)
+
         acs = self._expand_to_ts_format(acs)
 
         inputs = torch.cat((proc_obs, acs), dim=-1)
 
+        # FIXME: Why does the mean have 3 values?
         mean, var, catastrophe_prob = self.model(inputs)
 
         predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
 
         predictions = torch.cat((predictions, catastrophe_prob), dim=-1)
-
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
 
-        return self.obs_postproc(obs, predictions)
+        post = self.obs_postproc(obs, predictions)
+
+        if return_mean_var:
+            return post, (mean, var)
+
+        return post
 
 
     def _expand_to_ts_format(self, mat):

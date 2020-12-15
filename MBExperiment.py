@@ -18,6 +18,8 @@ import numpy as np
 from gym import wrappers
 import torch
 
+from env.pointmass import PointmassEnv
+
 TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 #Do
 
@@ -43,7 +45,6 @@ class MBExperiment:
                     .nadapt_iters (int): (optional) Number of adaptation iters to perform. 10 in paper.
                     .continue_train (bool): Whether to continue training from a load_model_dir.
                     .test_domain (float): Environment domain used for adaptation/testing.
-                    .nrollout_per_itr (int): Number of rollouts per training iteration.
                     .start_epoch (int): Which epoch to start training from, used for continuing to train
                         a trained model.
                     .nexplore_iters (int): Number of unsupervised exploration iterations to be performed.
@@ -73,7 +74,6 @@ class MBExperiment:
 
         self.continue_train = params.exp_cfg.get("continue_train", False)
         self.test_domain = params.exp_cfg.get("test_domain", None)
-        self.nrollout_per_itr = params.exp_cfg.get("nrollout_per_itr", 1)
         self.start_epoch = params.exp_cfg.get("start_epoch", 0)
 
         self.nrecord = params.log_cfg.get("nrecord", 0)
@@ -99,6 +99,11 @@ class MBExperiment:
         if self.suffix is not None:
             self.logdir = self.logdir + '-' + self.suffix
         self.writer = SummaryWriter(self.logdir + '-tboard')
+
+	# Set env for PointmassEnv 
+        if (isinstance(self.env, PointmassEnv)):
+	    # set logdir for Pointmass
+            self.env.set_logdir(self.logdir)
 
         self.record_video = params.sim_cfg.get("record_video", False)
         if self.test_domain is not None:
@@ -131,6 +136,7 @@ class MBExperiment:
                 [sample["rewards"] for sample in samples],
             )
 
+        # Learning the dynamics and safety model
         self.run_training_iters(adaptation=False)
 
         # Save training buffers at end of training so we can load for adaptation if required
@@ -162,7 +168,17 @@ class MBExperiment:
             percentile = self.training_percentile
             self.policy.unsafe_pretraining = True # start off by default
             print_str = "TRAIN"
+        last_tick = perf_counter()
+
+        if (isinstance(self.env, PointmassEnv)):
+	    # set logdir for Pointmass
+            self.env.set_logdir(f"{self.logdir}/{print_str}/")
+
+
         for i in trange(*iteration_range):
+            print(f"========= TIME ELAPSED per iter f{perf_counter() - last_tick}")
+            last_tick = perf_counter()
+
             if i % 2 == 0 and adaptation:
                 self.run_test_evals(i)
             
@@ -177,7 +193,7 @@ class MBExperiment:
             print("####################################################################")
             print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
 
-            for j in range(max(self.nrollout_per_itr, self.nrollouts_per_iter)):
+            for j in range(self.nrollouts_per_iter):
                 self.policy.percentile = percentile
                 if self.record_video:
                     self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, print_str, i, self.policy.percentile, j), force=True)
@@ -207,6 +223,7 @@ class MBExperiment:
                 [sample["ac"] for sample in samples],
                 [sample["rewards"] for sample in samples],
             )
+
             if self.policy.mse_loss is not None:
                 mean_loss = np.mean(self.policy.mse_loss)
                 self.writer.add_scalar('%s-mean-loss' % print_str,
@@ -214,6 +231,7 @@ class MBExperiment:
             if self.policy.catastrophe_loss is not None:
                 self.writer.add_scalar('%s-catastrophe-loss' % print_str,
                                        self.policy.catastrophe_loss, i)
+
 
     def run_test_evals(self, adaptation_iteration):
         print("Beginning evaluation rollouts.")
