@@ -15,7 +15,7 @@ class CartPoleConfigModule:
     ENV_NAME = "MBRLCartPole-v0"
     TASK_HORIZON = 200
     NTRAIN_ITERS = 50
-    NROLLOUTS_PER_ITER = 100
+    NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 30
     PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 6, 4
