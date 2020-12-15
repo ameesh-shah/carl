@@ -47,8 +47,10 @@ class ExploreMPC(MPC):
 
         intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
+        assert intrinsic_cost.shape == (self.optimizer.popsize,)
+        assert supervised_cost.shape == (self.optimizer.popsize,)
 
-        #print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
+        # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
 
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0
@@ -77,9 +79,6 @@ class ExploreMPC(MPC):
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
             # cost shape: (npart * pop_size, obs_shape)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
-            if torch.max(cost) > 1000:
-                import pdb; pdb.set_trace()
-
             if self.mode == 'test' and not self.no_catastrophe_pred:  # use catastrophe prediction during adaptation
                 # catastrophe_cost_fn masks `cost`
                 #   if there is a catastrophe, the cost for that timestep is increased by COLLISION_COST=1e4 (configured in config/{env}.py)
@@ -98,5 +97,6 @@ class ExploreMPC(MPC):
 
         # Replace nan with high cost
         costs[costs != costs] = 1e6
+        # mean_cost: (popsize,)
         mean_cost = costs.mean(dim=1)
         return mean_cost.detach().cpu().numpy()
