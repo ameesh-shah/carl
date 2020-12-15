@@ -238,5 +238,5 @@ class DiscreteCEMOptimizer(Optimizer):
             mean = mean / normalization_factor[:, np.newaxis]
 
             t += 1
-        print("soln: ", mean)
+        # print("soln: ", mean)
         return mean

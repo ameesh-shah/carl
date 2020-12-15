@@ -50,7 +50,7 @@ class ExploreMPC(MPC):
         assert intrinsic_cost.shape == (self.optimizer.popsize,)
         assert supervised_cost.shape == (self.optimizer.popsize,)
 
-        print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
+        # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
 
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0

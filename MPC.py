@@ -353,7 +353,7 @@ class MPC:
 
             if self.ac_buf.shape[0] > 0:
                 action, self.ac_buf = self.ac_buf[0], self.ac_buf[1:]
-                print("picked act: ", action)
+                # print("picked act: ", action)
                 return action
             self.sy_cur_obs = obs
 
@@ -442,8 +442,8 @@ class MPC:
             # on the boundary and reset std to 0.
 
 #            print("max next obs: ", torch.max(next_obs).cpu().numpy(), " // mean ", torch.mean(next_obs).cpu().numpy())
-            print("cur_obs: ", cur_obs)
-            print("acs: ", cur_acs)
+            # print("cur_obs: ", cur_obs)
+            # print("acs: ", cur_acs)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             # One difference between CARL and this work is that
@@ -474,7 +474,7 @@ class MPC:
         else:
             # cost shape: (popsize, npart)
             mean_cost = costs.mean(dim=1)
-        print("mean cost: ", mean_cost.mean())
+        # print("mean cost: ", mean_cost.mean())
         return mean_cost.detach().cpu().numpy()
 
     # FIXME: predicts non-sensical states
