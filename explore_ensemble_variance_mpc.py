@@ -31,8 +31,6 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
         Returns:
             cost (ndarray): 
         """
-        costs = torch.zeros(self.optimizer.popsize, self.npart, device=TORCH_DEVICE)
-        
         obs_vars = []
         obs_means = []
 
@@ -86,5 +84,4 @@ class ExploreEnsembleVarianceMPC(ExploreMPC):
         plot_tensors = {
                 "costs_per_step": costs
                 }
-        mean_cost = costs.mean()
-        return mean_cost.detach().cpu().numpy()
+        return costs.detach().cpu().numpy()
