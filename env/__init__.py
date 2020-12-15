@@ -26,3 +26,15 @@ register(
     entry_point='env.pointmass:PointmassEnv',
     kwargs={'difficulty': 1}
 )
+
+register(
+    id='PointmassHard-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 2}
+)
+
+register(
+    id='PointmassVeryHard-v0',
+    entry_point='env.pointmass:PointmassEnv',
+    kwargs={'difficulty': 3}
+)
