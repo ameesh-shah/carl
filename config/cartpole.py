@@ -14,10 +14,10 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 class CartPoleConfigModule:
     ENV_NAME = "MBRLCartPole-v0"
     TASK_HORIZON = 200
-    NTRAIN_ITERS = 25
+    NTRAIN_ITERS = 50
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 10
-    PLAN_HOR = 10
+    PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 6, 4
     """
     MODEL_IN: (sin_angle, cos_angle, xpos, xvel, angle_vel, action)

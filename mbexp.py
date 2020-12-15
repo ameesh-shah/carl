@@ -88,7 +88,7 @@ if __name__ == "__main__":
                         help='number of rollouts per training iteration')
     parser.add_argument('--nadapt_iters', type=int, default=10,
                         help='number of adaptation iterations to perform on test environment')
-    parser.add_argument('--ntest_rollouts', type=int, default=1,
+    parser.add_argument('--ntest_rollouts', type=int, default=10,
                         help='number of test rollouts to perform')
     parser.add_argument('--no_catastrophe_pred', action='store_true',
                          help='if this flag is set, disables training and utilizing catastrophe prediction. Should be enabled \
