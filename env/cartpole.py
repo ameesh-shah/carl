@@ -15,6 +15,8 @@ class CartPoleEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         self.xml_location = '%s/assets/cartpole.xml' % dir_path
         self.mode = 'train'
         self.test_domain = 1.0
+        #TODO: for any other environments, this needs to be added
+        self.test_domains = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
         self.domain_low = 0.4
         self.domain_high = 0.8
         self.pendulum_length = 0.6

@@ -403,7 +403,7 @@ class MPC:
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
             # ac_buf: (self.per, ac_dim)
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
 
             return self.act(obs, t)
 
@@ -442,8 +442,8 @@ class MPC:
             # on the boundary and reset std to 0.
 
 #            print("max next obs: ", torch.max(next_obs).cpu().numpy(), " // mean ", torch.mean(next_obs).cpu().numpy())
-            print("cur_obs: ", cur_obs)
-            print("acs: ", cur_acs)
+            #print("cur_obs: ", cur_obs)
+            #print("acs: ", cur_acs)
             cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             # One difference between CARL and this work is that
@@ -474,7 +474,7 @@ class MPC:
         else:
             # cost shape: (popsize, npart)
             mean_cost = costs.mean(dim=1)
-        print("mean cost: ", mean_cost.mean())
+        #print("mean cost: ", mean_cost.mean())
         return mean_cost.detach().cpu().numpy()
 
     # FIXME: predicts non-sensical states

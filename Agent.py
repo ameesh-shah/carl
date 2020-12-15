@@ -37,9 +37,9 @@ class Agent:
             A.append(policy_action)
             times.append(time.time() - start)
             obs, reward, done, info = env.step(policy_action) # A[t]
-            print("=== taking action ", policy_action) 
-            print("cur obs: ", O[t]) 
-            print("actual next obs: ", obs)
+            #print("=== taking action ", policy_action)
+            #print("cur obs: ", O[t])
+            #print("actual next obs: ", obs)
 
             O.append(obs)
             reward_sum += reward

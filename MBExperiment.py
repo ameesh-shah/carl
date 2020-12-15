@@ -153,8 +153,21 @@ class MBExperiment:
         np.save(os.path.join(self.logdir, "train_in.npy"), old_train_in)
         np.save(os.path.join(self.logdir, "train_targs.npy"), old_train_targs)
         
-        self.run_training_iters(adaptation=True)
-        self.run_test_evals(self.nadapt_iters)
+        lengths_and_rewards = []
+        lengths_and_catastrophes = []
+
+        for test_domain in self.env.test_domains:
+            self.env.test_domain = test_domain
+            print("Setting test domain to: %0.3f and RE-ADAPTING" % self.env.test_domain)
+            self.run_training_iters(adaptation=True)
+            mean_test_ret, num_catastrophes = self.run_test_evals(self.nadapt_iters)
+            lengths_and_rewards.append([test_domain, mean_test_ret])
+            lengths_and_catastrophes.append([test_domain, num_catastrophes])
+
+        print("MEAN REWARDS:", lengths_and_rewards)
+        print("NUM CATASTROPHES:", lengths_and_catastrophes)
+        np.save(os.path.join(self.logdir, "lengths_and_rewards.npy"), lengths_and_rewards)
+        np.save(os.path.join(self.logdir, "lengths_and_catastrophes.npy"), lengths_and_catastrophes)
 
     def run_training_iters(self, adaptation):
         max_return = -float("inf")
@@ -194,6 +207,7 @@ class MBExperiment:
             print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
 
             for j in range(self.nrollouts_per_iter):
+                print("On rollout {}".format(j))
                 self.policy.percentile = percentile
                 if self.record_video:
                     self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, print_str, i, self.policy.percentile, j), force=True)
@@ -266,3 +280,4 @@ class MBExperiment:
             self.writer.add_scalar('mean-test-return:',
                                    mean_test_return, adaptation_iteration)
         self.writer.close()
+        return mean_test_return, num_catastrophes

@@ -16,7 +16,7 @@ class CartPoleConfigModule:
     TASK_HORIZON = 200
     NTRAIN_ITERS = 50
     NROLLOUTS_PER_ITER = 100
-    NTEST_ROLLOUTS = 1
+    NTEST_ROLLOUTS = 30
     PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 6, 4
     """
@@ -93,7 +93,7 @@ class CartPoleConfigModule:
         Returns: (note we do NOT predict pendulum len)
             (state delta, catastrophe_prob) 
         """
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         if isinstance(obs, np.ndarray):
             return np.concatenate([next_obs[..., :-2] - obs[..., :-2], next_obs[..., -1:]], axis=-1)
         elif isinstance(obs, torch.Tensor):
