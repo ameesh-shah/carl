@@ -48,7 +48,7 @@ class ExploreMPC(MPC):
         intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
 
-        print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
+        # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
 
         # TODO: make weight on each a parameter
         return (intrinsic_cost + supervised_cost) / 2.0

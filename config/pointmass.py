@@ -99,7 +99,7 @@ class PointmassConfigModule:
             obs: shape (batch_size, obs_dim) = (npart * popsize, obs_dim) = (8000, ...)
         """
         # TODO: this is dense reward specifically
-        print("next obs: ", obs[:, :2])
+        # print("next obs: ", obs[:, :2])
         return torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
 
     @staticmethod
