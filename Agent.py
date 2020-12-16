@@ -8,6 +8,8 @@ import numpy as np
 from tqdm import trange
 
 import torch
+TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
 
 class Agent:
     """An general class for RL agents.
@@ -47,15 +49,18 @@ class Agent:
 
             # Run through model to see the catastrophe prob
             proc_obs = policy.obs_preproc(O[t])
-            inputs = torch.cat((torch.Tensor(proc_obs), torch.Tensor(policy_action)), dim=-1)
+            inputs = torch.cat((torch.Tensor(proc_obs).to(TORCH_DEVICE), torch.Tensor(policy_action).to(TORCH_DEVICE)), dim=-1)
 
             # Getting catastrophe prob for a state
+            import pdb; pdb.set_trace()
             mean, var, catastrophe_prob = policy.model(inputs)
+            print("CAT PROB: ", catastrophe_prob)
 
+            catastrophe_prob[catastrophe_prob != catastrophe_prob] = 0.
             _catastrophe_prob = torch.mean(catastrophe_prob)
             _catastrophe_prob = torch.sigmoid(_catastrophe_prob)
 
-            env.catastrophe_probs.append(_catastrophe_prob.detach().numpy())
+            env.catastrophe_probs.append(_catastrophe_prob.detach().cpu().numpy())
 
             if info['Catastrophe']:
                 catastrophes += 1
