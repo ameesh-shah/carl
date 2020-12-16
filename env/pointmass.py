@@ -630,7 +630,7 @@ class PointmassEnv(gym.Env):
     for i in range(len(obs_vec)):
         unnormalized_obs = self._unnormalize_obs(obs_vec[i, :2])
         _, rwd = self.get_dist_and_reward(unnormalized_obs)
-        self.plt.annotate(rwd, obs_vec[i, :2])
+        self.plt.annotate(int(rwd), obs_vec[i, :2])
 
     # Draw a rewarded states for sparse rewards
     # Draw catastrophe states
@@ -657,7 +657,8 @@ class PointmassEnv(gym.Env):
         self.plt.scatter([rewarding_states[:, 0]], [rewarding_states[:, 1]], marker='o', color='green', s=200)
 
     # Create empty plot with blank marker containing the extra label
-    self.plt.plot([], [], ' ', label="# of wall hits: " + str(self.wall_hits))
+    self.plt.plot([], [], ' ', label="# of wall hits: " + str(catastrophic_states.shape[0]))
+    self.plt.plot([], [], ' ', label="action noise: " + "{:.2f}".format(self.action_noise))
 
     self.plt.legend()
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')

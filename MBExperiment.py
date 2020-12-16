@@ -181,11 +181,13 @@ class MBExperiment:
             percentile = self.test_percentile
             self.policy.unsafe_pretraining = False
             print_str = "ADAPT"
+            graph_str = "ADAPT-" + str(self.env.test_domain)
         else:
             iteration_range = [self.start_epoch, self.ntrain_iters]
             percentile = self.training_percentile
             self.policy.unsafe_pretraining = True # start off by default
             print_str = "TRAIN"
+            graph_str = "TRAIN"
         last_tick = perf_counter()
 
         if (isinstance(self.env, PointmassEnv)):
@@ -216,8 +218,8 @@ class MBExperiment:
             for j in range(self.nrollouts_per_iter):
                 self.policy.percentile = percentile
                 if self.record_video:
-                    self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, print_str, i, self.policy.percentile, j), force=True)
-                self.policy.logdir = "%s/%s_iter_%d" % (self.logdir, print_str, i)
+                    self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, graph_str, i, self.policy.percentile, j), force=True)
+                self.policy.logdir = "%s/%s_iter_%d" % (self.logdir, graph_str, i)
                 samples.append(
                     self.agent.sample(
                         self.task_hor, self.policy, record=self.record_video and adaptation,
@@ -227,11 +229,11 @@ class MBExperiment:
             if self.record_video:
                 self.env = self.env.env
             eval_samples = samples
-            self.writer.add_scalar('mean-' + print_str + '-return',
+            self.writer.add_scalar('mean-' + graph_str + '-return',
                                    float(sum([sample["reward_sum"] for sample in eval_samples])) / float(len(eval_samples)),
                                    i)
             max_return = max(float(sum([sample["reward_sum"] for sample in eval_samples])) / float(len(eval_samples)), max_return)
-            self.writer.add_scalar('max-' + print_str + '-return',
+            self.writer.add_scalar('max-' + graph_str + '-return',
                                    max_return,
                                    i)
             rewards = [sample["reward_sum"] for sample in eval_samples]
@@ -252,10 +254,10 @@ class MBExperiment:
 
             if self.policy.mse_loss is not None:
                 mean_loss = np.mean(self.policy.mse_loss)
-                self.writer.add_scalar('%s-mean-loss' % print_str,
+                self.writer.add_scalar('%s-mean-loss' % graph_str,
                                        mean_loss, i)
             if self.policy.catastrophe_loss is not None:
-                self.writer.add_scalar('%s-catastrophe-loss' % print_str,
+                self.writer.add_scalar('%s-catastrophe-loss' % graph_str,
                                        self.policy.catastrophe_loss, i)
 
         # Plot density
@@ -294,7 +296,7 @@ class MBExperiment:
                                    num_catastrophes,
                                    adaptation_iteration)
             mean_test_return = float(sum([sample["reward_sum"] for sample in samples])) / float(len(samples))
-            self.writer.add_scalar('mean-test-return:',
+            self.writer.add_scalar('mean-test-return-' + str(self.env.test_domain),
                                    mean_test_return, adaptation_iteration)
         self.writer.close()
 
