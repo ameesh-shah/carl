@@ -352,8 +352,11 @@ class PointmassEnv(gym.Env):
     self.num_actions = 5
     self.epsilon = resize_factor
     self.action_noise = action_noise
-    self.test_action_noise = 0.2 # FIXME: make it passed in from outside.
-    
+    self.test_domain = 0.4 # FIXME: make it passed in from outside.
+
+    #TODO: for any other environments, this needs to be added
+    self.test_domains = [0.4, 0.75] 
+
     self.obs_vec = []
 
     # mostly for plotting density
@@ -364,6 +367,8 @@ class PointmassEnv(gym.Env):
     self.difficulty = difficulty
 
     self.num_runs = 0
+
+    self.mode = 'train'
     self.reset()
 
   def seed(self, seed):
@@ -378,11 +383,13 @@ class PointmassEnv(gym.Env):
           self.last_trajectory = self.plot_trajectory()
 
       if mode == 'train':
-          # self.action_noise = np.random.uniform(low=0.0, high=1.0) 
-          # print('Resetting the environment. action_noise: ' + str(self.action_noise))
-          self.action_noise = 0.5 # TODO: vary this across envs
+          self.action_noise = np.random.uniform(low=0.0, high=0.5) 
+          print('Resetting the environment. action_noise: ' + str(self.action_noise))
+          # self.action_noise = 0.5 # TODO: vary this across envs
+          self.mode = mode
       elif mode == 'test':
-          self.action_noise = self.test_action_noise
+          self.action_noise = self.test_domain
+          self.mode = mode
       else:
           raise ValueError('Unrecognized mode: ' + mode)
 
@@ -549,6 +556,9 @@ class PointmassEnv(gym.Env):
 
     # obs_vec is used for plotting trajectories.
     self.obs_vec.append(extended_obs.copy())
+
+    if catastrophe and self.mode == 'test':
+        done = True
 
     return extended_obs, reward, done, info
 

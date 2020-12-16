@@ -156,6 +156,23 @@ class MBExperiment:
         self.run_training_iters(adaptation=True)
         self.run_test_evals(self.nadapt_iters)
 
+        # Adapt to multiple domains
+        variable_and_rewards = []
+        variable_and_catastrophes = []
+
+        for test_domain in self.env.test_domains:
+            self.env.test_domain = test_domain
+            print("Setting test domain to: %0.3f and RE-ADAPTING" % self.env.test_domain)
+            self.run_training_iters(adaptation=True)
+            mean_test_ret, num_catastrophes = self.run_test_evals(self.nadapt_iters)
+            variable_and_rewards.append([test_domain, mean_test_ret])
+            variable_and_catastrophes.append([test_domain, num_catastrophes])
+
+        print("MEAN REWARDS:", variable_and_rewards)
+        print("NUM CATASTROPHES:", variable_and_catastrophes)
+        np.save(os.path.join(self.logdir, "variable_and_rewards.npy"), variable_and_rewards)
+        np.save(os.path.join(self.logdir, "variable_and_catastrophes.npy"), variable_and_catastrophes)
+
 
     def run_training_iters(self, adaptation):
         max_return = -float("inf")
