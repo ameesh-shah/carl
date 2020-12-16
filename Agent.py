@@ -7,8 +7,7 @@ import time
 import numpy as np
 from tqdm import trange
 
-
-
+import torch
 
 class Agent:
     """An general class for RL agents.
@@ -45,7 +44,19 @@ class Agent:
             O.append(obs)
             reward_sum += reward
             rewards.append(reward)
-            
+
+            # Run through model to see the catastrophe prob
+            proc_obs = policy.obs_preproc(O[t])
+            inputs = torch.cat((torch.Tensor(proc_obs), torch.Tensor(policy_action)), dim=-1)
+
+            # Getting catastrophe prob for a state
+            mean, var, catastrophe_prob = policy.model(inputs)
+
+            _catastrophe_prob = torch.mean(catastrophe_prob)
+            _catastrophe_prob = torch.sigmoid(_catastrophe_prob)
+
+            env.catastrophe_probs.append(_catastrophe_prob.detach().numpy())
+
             if info['Catastrophe']:
                 catastrophes += 1
 

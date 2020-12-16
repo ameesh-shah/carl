@@ -477,7 +477,6 @@ class MPC:
         # print("mean cost: ", mean_cost.mean())
         return mean_cost.detach().cpu().numpy()
 
-    # FIXME: predicts non-sensical states
     def _predict_next_obs(self, obs, acs, return_mean_var=False):
         proc_obs = self.obs_preproc(obs)
 

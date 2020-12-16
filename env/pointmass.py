@@ -361,6 +361,8 @@ class PointmassEnv(gym.Env):
 
     # mostly for plotting density
     self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
+    # For plotting trajectories
+    self.catastrophe_probs = []
 
     self.wall_hits = 0
     self.last_trajectory = None
@@ -626,11 +628,19 @@ class PointmassEnv(gym.Env):
     self.plt.scatter([goal[0]], [goal[1]], marker='*',
                 color='green', s=200, label='goal')
 
+    """
     # Annotate rewards
     for i in range(len(obs_vec)):
         unnormalized_obs = self._unnormalize_obs(obs_vec[i, :2])
         _, rwd = self.get_dist_and_reward(unnormalized_obs)
         self.plt.annotate(int(rwd), obs_vec[i, :2])
+    """
+
+    # Annotate catastrophe probs
+    if len(self.catastrophe_probs) > 0:
+        for i in range(len(obs_vec) - 1):
+            self.plt.annotate("{:.2f}".format(self.catastrophe_probs[i]), obs_vec[i, :2])
+        self.catastrophe_probs = []
 
     # Draw a rewarded states for sparse rewards
     # Draw catastrophe states
