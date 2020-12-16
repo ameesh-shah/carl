@@ -153,14 +153,14 @@ class MBExperiment:
         np.save(os.path.join(self.logdir, "train_in.npy"), old_train_in)
         np.save(os.path.join(self.logdir, "train_targs.npy"), old_train_targs)
         
-        self.run_training_iters(adaptation=True)
-        self.run_test_evals(self.nadapt_iters)
-
         # Adapt to multiple domains
         variable_and_rewards = []
         variable_and_catastrophes = []
 
+        print(self.env.test_domains)
         for test_domain in self.env.test_domains:
+            print('***** ' + str(test_domain))
+            print(self.nadapt_iters)
             self.env.test_domain = test_domain
             print("Setting test domain to: %0.3f and RE-ADAPTING" % self.env.test_domain)
             self.run_training_iters(adaptation=True)
@@ -262,7 +262,7 @@ class MBExperiment:
         if not adaptation:
             self.env.plot_density_graph('density_after_pretraining')
         else:
-            self.env.plot_density_graph('density_after_adaptation')
+            self.env.plot_density_graph('density_after_adaptation_to_' + str(self.env.test_domain))
 
     def run_test_evals(self, adaptation_iteration):
         print("Beginning evaluation rollouts.")
@@ -297,3 +297,5 @@ class MBExperiment:
             self.writer.add_scalar('mean-test-return:',
                                    mean_test_return, adaptation_iteration)
         self.writer.close()
+
+        return mean_test_return, num_catastrophes

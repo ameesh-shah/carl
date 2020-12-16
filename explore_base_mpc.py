@@ -12,6 +12,8 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 from MPC import MPC
 from env.pointmass import PointmassEnv
 
+from pytorch_util import normalize, unnormalize
+
 '''
 Explore with MPC + intrinsic motivation mixed reward
 '''
@@ -55,6 +57,25 @@ class ExploreMPC(MPC):
             print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
             return (100 * intrinsic_cost + supervised_cost) / 2.0
         return supervised_cost
+        # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
+        
+        """
+        # TODO: make weight on each a parameter
+        print('Intrinsic cost:')
+        print(intrinsic_cost)
+        print('Normalized intrinsic cost: ')
+        print(normalize(intrinsic_cost, np.mean(intrinsic_cost), np.std(intrinsic_cost)))
+        print('Supervised cost')
+        print(supervised_cost)
+        print('Normalized supervised cost: ')
+        print(normalize(supervised_cost, np.mean(supervised_cost), np.std(supervised_cost)))
+        print((normalize(intrinsic_cost, np.mean(intrinsic_cost), np.std(intrinsic_cost)) + normalize(supervised_cost, np.mean(supervised_cost), np.std(supervised_cost))))
+        # return (intrinsic_cost + supervised_cost) / 2.0
+
+        normalized_intrinsic = normalize(intrinsic_cost, np.mean(intrinsic_cost), np.std(intrinsic_cost))
+        normalized_supervised = normalize(supervised_cost, np.mean(supervised_cost), np.std(supervised_cost))
+        return normalized_intrinsic + normalized_supervised
+        """
 
     @torch.no_grad()
     def _compile_cost_intrinsic(self, ac_seqs, cur_obs):

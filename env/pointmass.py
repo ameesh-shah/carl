@@ -352,8 +352,8 @@ class PointmassEnv(gym.Env):
     self.num_actions = 5
     self.epsilon = resize_factor
     self.action_noise = action_noise
-    self.test_domain = 0.4 # FIXME: make it passed in from outside.
 
+    self.test_domain = 0
     #TODO: for any other environments, this needs to be added
     self.test_domains = [0.4, 0.75] 
 
