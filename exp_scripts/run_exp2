@@ -1,1 +1,1 @@
-python3 mbexp.py --env pointmass-easy --frac_unsafe_pretraining 0.5 --ctrl_type PuP --expname pointmass-easy-frac-0-5 --ninit_rollouts 1
+python3 mbexp.py --env pointmass-easy --frac_unsafe_pretraining 0.5 --ctrl_type PuP --expname pointmass-easy-frac-0-5_catas --ninit_rollouts 10

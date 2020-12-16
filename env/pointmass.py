@@ -523,6 +523,8 @@ class PointmassEnv(gym.Env):
     # We also count the number of time the agent runs into the wall.
     # A trained agent should minimize the number of times hitting the wall.
     if np.array_equal(next_state, self.state):
+        print("CATASTROPHE")
+        import pdb; pdb.set_trace()
         catastrophe = True
     else:
         catastrophe = False

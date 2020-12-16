@@ -226,6 +226,8 @@ class MPC:
 
         # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
+        print("viewing train targs")
+        import pdb; pdb.set_trace()
         # Train the model
         self.has_been_trained = True
 

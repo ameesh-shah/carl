@@ -111,7 +111,9 @@ class ExploreMPC(MPC):
                 cost = self.catastrophe_cost_fn(next_obs, cost, self.percentile)
             elif self.mode == 'train' and self.unsafe_pretraining:
                 catastrophe_prob = next_obs[..., -1]
-                cost = -(100 * catastrophe_prob)  # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
+                print(catastrophe_prob)
+                cost = -(10000 * catastrophe_prob)  # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
+                print("cost: ", cost)
             # cost: (popsize, npart)
             cost = cost.view(-1, self.npart)
             costs += cost

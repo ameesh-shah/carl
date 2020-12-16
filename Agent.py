@@ -52,7 +52,7 @@ class Agent:
             inputs = torch.cat((torch.Tensor(proc_obs).to(TORCH_DEVICE), torch.Tensor(policy_action).to(TORCH_DEVICE)), dim=-1)
 
             # Getting catastrophe prob for a state
-            import pdb; pdb.set_trace()
+#            import pdb; pdb.set_trace()
             mean, var, catastrophe_prob = policy.model(inputs)
             print("CAT PROB: ", catastrophe_prob)
 
@@ -63,6 +63,7 @@ class Agent:
             env.catastrophe_probs.append(_catastrophe_prob.detach().cpu().numpy())
 
             if info['Catastrophe']:
+                import pdb; pdb.set_trace()
                 catastrophes += 1
 
             if done:
