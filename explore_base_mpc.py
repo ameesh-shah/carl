@@ -45,15 +45,16 @@ class ExploreMPC(MPC):
         cur_obs = cur_obs[None]
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
 
-        intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
-        assert intrinsic_cost.shape == (self.optimizer.popsize,)
         assert supervised_cost.shape == (self.optimizer.popsize,)
 
-        # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
-
-        # TODO: make weight on each a parameter
-        return (intrinsic_cost + supervised_cost) / 2.0
+        # only explore during train time
+        if self.mode == "train":
+            intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
+            assert intrinsic_cost.shape == (self.optimizer.popsize,)
+            print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
+            return (100 * intrinsic_cost + supervised_cost) / 2.0
+        return supervised_cost
 
     @torch.no_grad()
     def _compile_cost_intrinsic(self, ac_seqs, cur_obs):
