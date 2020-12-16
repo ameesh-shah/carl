@@ -156,6 +156,9 @@ class MBExperiment:
         self.run_training_iters(adaptation=True)
         self.run_test_evals(self.nadapt_iters)
 
+        # Plot density
+        self.env.plot_density_graph()
+
     def run_training_iters(self, adaptation):
         max_return = -float("inf")
         if adaptation:
