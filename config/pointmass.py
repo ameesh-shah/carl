@@ -13,8 +13,10 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 
 class PointmassConfigModule:
     ENV_NAME = "" # FILL IN SUBCLASS
-    TASK_HORIZON = 50 #150
+    TASK_HORIZON = 50
+    # TASK_HORIZON = 2 # Debug
     NTRAIN_ITERS = 20
+    # NTRAIN_ITERS = 5 # Debug
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 3
