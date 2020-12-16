@@ -54,7 +54,7 @@ class ExploreMPC(MPC):
         if self.mode == "train":
             intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
             assert intrinsic_cost.shape == (self.optimizer.popsize,)
-            print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
+            # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
             return (100 * intrinsic_cost + supervised_cost) / 2.0
         return supervised_cost
         # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')

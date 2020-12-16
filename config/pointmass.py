@@ -14,7 +14,7 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 class PointmassConfigModule:
     ENV_NAME = "" # FILL IN SUBCLASS
     TASK_HORIZON = 50 #150
-    NTRAIN_ITERS = 10
+    NTRAIN_ITERS = 20
     NROLLOUTS_PER_ITER = 1
     NTEST_ROLLOUTS = 1
     PLAN_HOR = 3
@@ -29,7 +29,7 @@ class PointmassConfigModule:
     MODEL_ENSEMBLE_SIZE = 5
     MODEL_HIDDEN_SIZE = 500
     MODEL_WEIGHT_DECAYS = [1e-4, 2.5e-4, 2.5e-4, 5e-4]
-    USE_DENSE_REWARD = False
+    USE_DENSE_REWARD = True
     # how close you have to be to goal (in normalized obs space) to get sparse reward
     REACHED_GOAL_EPS = .2  # 1 unit in original 5x5 = .2 units in 1x1
 
@@ -100,7 +100,7 @@ class PointmassConfigModule:
         Args:
             obs: shape (batch_size, obs_dim) = (npart * popsize, obs_dim) = (8000, ...)
         """
-        print("next obs: ", obs[:, :2])
+        # print("next obs: ", obs[:, :2])
         if CONFIG_MODULE.USE_DENSE_REWARD:
             return torch.norm(obs[:, :2] - obs[:, 2:4], dim=-1)
         sparse_cost = torch.any( # any dimension is far from goal
