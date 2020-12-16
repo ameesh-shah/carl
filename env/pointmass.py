@@ -83,6 +83,13 @@ WALLS = {
                   [0, 1, 1, 0, 0, 1],
                   [0, 0, 1, 1, 0, 1],
                   [1, 0, 0, 0, 0, 1]]),
+    'Maze6x6_half':
+        np.array([[1, 1, 1, 1, 1, 1],
+                  [1, 1, 1, 0, 0, 0],
+                  [1, 1, 1, 0, 1, 1],
+                  [1, 1, 1, 0, 0, 1],
+                  [1, 1, 1, 1, 0, 1],
+                  [1, 0, 0, 0, 0, 1]]),
     'Maze11x11':
         np.array([[0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
                   [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
@@ -292,9 +299,9 @@ class PointmassEnv(gym.Env):
       self.fixed_goal = np.array([4.5, 4.5]) * resize_factor
       self.max_episode_steps = 50
     elif difficulty == 1:
-      walls = 'Maze6x6'
-      resize_factor = 1
-      self.fixed_start = np.array([0.5, 0.5]) * resize_factor
+      walls = 'Maze6x6_half'
+      resize_factor = 2
+      self.fixed_start = np.array([5.5, 1.5]) * resize_factor
       self.fixed_goal = np.array([1.5, 5.5]) * resize_factor
       self.max_episode_steps = 150
     elif difficulty == 2:
@@ -309,6 +316,12 @@ class PointmassEnv(gym.Env):
       self.fixed_start = np.array([0.5, 0.5]) * resize_factor
       self.fixed_goal = np.array([0.5, 10.5]) * resize_factor
       self.max_episode_steps = 200
+    elif difficulty == 4:
+      walls = 'Maze6x6'
+      resize_factor = 1
+      self.fixed_start = np.array([0.5, 0.5]) * resize_factor
+      self.fixed_goal = np.array([1.5, 5.5]) * resize_factor
+      self.max_episode_steps = 150
     else:
       print('Invalid difficulty setting')
       return 1/0
@@ -342,7 +355,10 @@ class PointmassEnv(gym.Env):
     self.test_action_noise = 0.2 # FIXME: make it passed in from outside.
     
     self.obs_vec = []
+
+    # mostly for plotting density
     self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
+
     self.wall_hits = 0
     self.last_trajectory = None
     self.difficulty = difficulty
@@ -636,13 +652,16 @@ class PointmassEnv(gym.Env):
     self.plt.legend()
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
 
-  def plot_density_graph(self):
+  def plot_density_graph(self, fig_name):
     self.plt.clf()
     H, xedges, yedges = np.histogram2d(self.replay_buffer[:,0], self.replay_buffer[:,1], range=[[0., 1.], [0., 1.]], density=True)
     self.plt.imshow(np.rot90(H), interpolation='bicubic')
     self.plt.colorbar()
     self.plt.title('State Density')
-    self.fig.savefig(self.traj_filepath + 'density' + '.png', bbox_inches='tight')
+    self.fig.savefig(self.traj_filepath + fig_name + '.png', bbox_inches='tight')
+
+    # clears buffer
+    self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
 
   def get_last_trajectory(self):
     return self.last_trajectory

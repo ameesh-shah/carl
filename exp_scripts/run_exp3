@@ -1,0 +1,1 @@
+python3 mbexp.py --env pointmass-medium --frac_unsafe_pretraining 0 --ctrl_type PuP --expname pointmass-medium-frac-0 --ninit_rollouts 10

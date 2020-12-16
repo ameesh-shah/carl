@@ -156,8 +156,6 @@ class MBExperiment:
         self.run_training_iters(adaptation=True)
         self.run_test_evals(self.nadapt_iters)
 
-        # Plot density
-        self.env.plot_density_graph()
 
     def run_training_iters(self, adaptation):
         max_return = -float("inf")
@@ -190,8 +188,10 @@ class MBExperiment:
             self.policy.percentile = percentile
 
             # Unsafe pretraining for first `frac_unsafe_pretraining` proportion of ntrain_iters
-            if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters:
+            if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters and self.policy.unsafe_pretraining == True:
                 self.policy.unsafe_pretraining = False 
+                # Plot density graph
+                self.env.plot_density_graph('density_after_unsafe_pretraining')
 
             print("####################################################################")
             print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
@@ -220,6 +220,12 @@ class MBExperiment:
             rewards = [sample["reward_sum"] for sample in eval_samples]
             print("Rewards obtained:", rewards)
             samples = samples[:self.nrollouts_per_iter]
+            
+            # log pretrain catastrophe
+            num_pretrain_catastrophes = sum([1 if sample["catastrophe"] else 0 for sample in samples])
+            self.writer.add_scalar('num-pretrain-catastrophes',
+                                   num_pretrain_catastrophes,
+                                   i) # iteration
 
             self.policy.train(
                 [sample["obs"] for sample in samples],
@@ -235,6 +241,11 @@ class MBExperiment:
                 self.writer.add_scalar('%s-catastrophe-loss' % print_str,
                                        self.policy.catastrophe_loss, i)
 
+        # Plot density
+        if not adaptation:
+            self.env.plot_density_graph('density_after_pretraining')
+        else:
+            self.env.plot_density_graph('density_after_adaptation')
 
     def run_test_evals(self, adaptation_iteration):
         print("Beginning evaluation rollouts.")
