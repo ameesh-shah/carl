@@ -241,9 +241,9 @@ class MBExperiment:
             samples = samples[:self.nrollouts_per_iter]
             
             # log pretrain catastrophe
-            num_pretrain_catastrophes = sum([1 if sample["catastrophe"] else 0 for sample in samples])
-            self.writer.add_scalar('num-pretrain-catastrophes',
-                                   num_pretrain_catastrophes,
+            num_catastrophes = sum([sample["catastrophe"] for sample in samples])
+            self.writer.add_scalar('num-' + graph_str + '-catastrophes',
+                                   num_catastrophes,
                                    i) # iteration
 
             self.policy.train(
@@ -291,8 +291,8 @@ class MBExperiment:
                 mean_test_return
             ))
         if self.ntest_rollouts > 0:
-            num_catastrophes = sum([1 if sample["catastrophe"] else 0 for sample in samples])
-            self.writer.add_scalar('num-catastrophes',
+            num_catastrophes = sum([sample["catastrophe"] for sample in samples])
+            self.writer.add_scalar('num-test-catastrophes-' + str(self.env.test_domain),
                                    num_catastrophes,
                                    adaptation_iteration)
             mean_test_return = float(sum([sample["reward_sum"] for sample in samples])) / float(len(samples))

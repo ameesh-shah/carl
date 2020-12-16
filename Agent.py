@@ -27,6 +27,7 @@ class Agent:
         Returns: (dict) A dictionary containing data from the rollout.
         """
         times, rewards = [], []
+        catastrophes = 0
         policy.mode = mode
         # env.reset selects a random environment with the train/test distribution
         O, A, reward_sum, done = [env.reset(mode=mode)], [], 0, False
@@ -44,6 +45,10 @@ class Agent:
             O.append(obs)
             reward_sum += reward
             rewards.append(reward)
+            
+            if info['Catastrophe']:
+                catastrophes += 1
+
             if done:
                 break
         if record:
@@ -64,5 +69,5 @@ class Agent:
             "ac": np.array(A),
             "reward_sum": reward_sum,
             "rewards": np.array(rewards),
-            "catastrophe": info['Catastrophe'],
+            "catastrophe": catastrophes,
         }
