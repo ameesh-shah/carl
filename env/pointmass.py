@@ -552,6 +552,7 @@ class PointmassEnv(gym.Env):
     info = {}
     if catastrophe:
         info['Catastrophe'] = True
+        reward = -10000
     else:
         info['Catastrophe'] = False
 
