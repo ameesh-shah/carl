@@ -100,9 +100,9 @@ class MBExperiment:
             self.logdir = self.logdir + '-' + self.suffix
         self.writer = SummaryWriter(self.logdir + '-tboard')
 
-	# Set env for PointmassEnv 
+    # Set env for PointmassEnv 
         if (isinstance(self.env, PointmassEnv)):
-	    # set logdir for Pointmass
+        # set logdir for Pointmass
             self.env.set_logdir(self.logdir)
 
         self.record_video = params.sim_cfg.get("record_video", False)
@@ -153,8 +153,26 @@ class MBExperiment:
         np.save(os.path.join(self.logdir, "train_in.npy"), old_train_in)
         np.save(os.path.join(self.logdir, "train_targs.npy"), old_train_targs)
         
-        self.run_training_iters(adaptation=True)
-        self.run_test_evals(self.nadapt_iters)
+        # Adapt to multiple domains
+        variable_and_rewards = []
+        variable_and_catastrophes = []
+
+        print(self.env.test_domains)
+        for test_domain in self.env.test_domains:
+            print('***** ' + str(test_domain))
+            print(self.nadapt_iters)
+            self.env.test_domain = test_domain
+            print("Setting test domain to: %0.3f and RE-ADAPTING" % self.env.test_domain)
+            self.run_training_iters(adaptation=True)
+            mean_test_ret, num_catastrophes = self.run_test_evals(self.nadapt_iters)
+            variable_and_rewards.append([test_domain, mean_test_ret])
+            variable_and_catastrophes.append([test_domain, num_catastrophes])
+
+        print("MEAN REWARDS:", variable_and_rewards)
+        print("NUM CATASTROPHES:", variable_and_catastrophes)
+        np.save(os.path.join(self.logdir, "variable_and_rewards.npy"), variable_and_rewards)
+        np.save(os.path.join(self.logdir, "variable_and_catastrophes.npy"), variable_and_catastrophes)
+
 
     def run_training_iters(self, adaptation):
         max_return = -float("inf")
@@ -163,15 +181,17 @@ class MBExperiment:
             percentile = self.test_percentile
             self.policy.unsafe_pretraining = False
             print_str = "ADAPT"
+            graph_str = "ADAPT-" + str(self.env.test_domain)
         else:
             iteration_range = [self.start_epoch, self.ntrain_iters]
             percentile = self.training_percentile
             self.policy.unsafe_pretraining = True # start off by default
             print_str = "TRAIN"
+            graph_str = "TRAIN"
         last_tick = perf_counter()
 
         if (isinstance(self.env, PointmassEnv)):
-	    # set logdir for Pointmass
+        # set logdir for Pointmass
             self.env.set_logdir(f"{self.logdir}/{print_str}/")
 
 
@@ -187,8 +207,10 @@ class MBExperiment:
             self.policy.percentile = percentile
 
             # Unsafe pretraining for first `frac_unsafe_pretraining` proportion of ntrain_iters
-            if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters:
+            if not adaptation and i >= self.frac_unsafe_pretraining * self.ntrain_iters and self.policy.unsafe_pretraining == True:
                 self.policy.unsafe_pretraining = False 
+                # Plot density graph
+                self.env.plot_density_graph('density_after_unsafe_pretraining')
 
             print("####################################################################")
             print(f"Starting training on {print_str}, {'UNSAFE' if self.policy.unsafe_pretraining else ''} env iteration {i+1}")
@@ -196,8 +218,8 @@ class MBExperiment:
             for j in range(self.nrollouts_per_iter):
                 self.policy.percentile = percentile
                 if self.record_video:
-                    self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, print_str, i, self.policy.percentile, j), force=True)
-                self.policy.logdir = "%s/%s_iter_%d" % (self.logdir, print_str, i)
+                    self.env = wrappers.Monitor(self.env, "%s/%s_iter_%d_percentile/percentile_%d_rollout_%d" % (self.logdir, graph_str, i, self.policy.percentile, j), force=True)
+                self.policy.logdir = "%s/%s_iter_%d" % (self.logdir, graph_str, i)
                 samples.append(
                     self.agent.sample(
                         self.task_hor, self.policy, record=self.record_video and adaptation,
@@ -207,16 +229,22 @@ class MBExperiment:
             if self.record_video:
                 self.env = self.env.env
             eval_samples = samples
-            self.writer.add_scalar('mean-' + print_str + '-return',
+            self.writer.add_scalar('mean-' + graph_str + '-return',
                                    float(sum([sample["reward_sum"] for sample in eval_samples])) / float(len(eval_samples)),
                                    i)
             max_return = max(float(sum([sample["reward_sum"] for sample in eval_samples])) / float(len(eval_samples)), max_return)
-            self.writer.add_scalar('max-' + print_str + '-return',
+            self.writer.add_scalar('max-' + graph_str + '-return',
                                    max_return,
                                    i)
             rewards = [sample["reward_sum"] for sample in eval_samples]
             print("Rewards obtained:", rewards)
             samples = samples[:self.nrollouts_per_iter]
+            
+            # log pretrain catastrophe
+            num_catastrophes = sum([sample["catastrophe"] for sample in samples])
+            self.writer.add_scalar('num-' + graph_str + '-catastrophes',
+                                   num_catastrophes,
+                                   i) # iteration
 
             self.policy.train(
                 [sample["obs"] for sample in samples],
@@ -226,12 +254,17 @@ class MBExperiment:
 
             if self.policy.mse_loss is not None:
                 mean_loss = np.mean(self.policy.mse_loss)
-                self.writer.add_scalar('%s-mean-loss' % print_str,
+                self.writer.add_scalar('%s-mean-loss' % graph_str,
                                        mean_loss, i)
             if self.policy.catastrophe_loss is not None:
-                self.writer.add_scalar('%s-catastrophe-loss' % print_str,
+                self.writer.add_scalar('%s-catastrophe-loss' % graph_str,
                                        self.policy.catastrophe_loss, i)
 
+        # Plot density
+        if not adaptation:
+            self.env.plot_density_graph('density_after_pretraining')
+        else:
+            self.env.plot_density_graph('density_after_adaptation_to_' + str(self.env.test_domain))
 
     def run_test_evals(self, adaptation_iteration):
         print("Beginning evaluation rollouts.")
@@ -258,11 +291,13 @@ class MBExperiment:
                 mean_test_return
             ))
         if self.ntest_rollouts > 0:
-            num_catastrophes = sum([1 if sample["catastrophe"] else 0 for sample in samples])
-            self.writer.add_scalar('num-catastrophes',
+            num_catastrophes = sum([sample["catastrophe"] for sample in samples])
+            self.writer.add_scalar('num-test-catastrophes-' + str(self.env.test_domain),
                                    num_catastrophes,
                                    adaptation_iteration)
             mean_test_return = float(sum([sample["reward_sum"] for sample in samples])) / float(len(samples))
-            self.writer.add_scalar('mean-test-return:',
+            self.writer.add_scalar('mean-test-return-' + str(self.env.test_domain),
                                    mean_test_return, adaptation_iteration)
         self.writer.close()
+
+        return mean_test_return, num_catastrophes

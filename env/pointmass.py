@@ -77,11 +77,11 @@ WALLS = {
                   [1, 1, 1, 1, 0],
                   [1, 1, 1, 1, 0]]),
     'Maze6x6':
-        np.array([[0, 0, 1, 0, 0, 0],
-                  [1, 0, 1, 0, 1, 0],
-                  [0, 0, 1, 0, 1, 1],
-                  [0, 1, 1, 0, 0, 1],
-                  [0, 0, 1, 1, 0, 1],
+        np.array([[1, 1, 1, 1, 1, 1],
+                  [1, 1, 1, 0, 0, 0],
+                  [1, 1, 1, 0, 1, 1],
+                  [1, 1, 1, 0, 0, 1],
+                  [1, 1, 1, 1, 0, 1],
                   [1, 0, 0, 0, 0, 1]]),
     'Maze11x11':
         np.array([[0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
@@ -289,14 +289,14 @@ class PointmassEnv(gym.Env):
       walls = 'Maze5x5'
       resize_factor = 2
       self.fixed_start = np.array([0.5, 0.5]) * resize_factor
-      self.fixed_goal = np.array([0.5, 4.5]) * resize_factor
+      self.fixed_goal = np.array([4.5, 4.5]) * resize_factor
       self.max_episode_steps = 50
     elif difficulty == 1:
       walls = 'Maze6x6'
       resize_factor = 1
-      self.fixed_start = np.array([0.5, 0.5]) * resize_factor
+      self.fixed_start = np.array([5.5, 1.5]) * resize_factor
       self.fixed_goal = np.array([1.5, 5.5]) * resize_factor
-      self.max_episode_steps = 150
+      self.max_episode_steps = 50
     elif difficulty == 2:
       walls = 'FourRooms'
       resize_factor = 2
@@ -340,13 +340,19 @@ class PointmassEnv(gym.Env):
     self.epsilon = resize_factor
     self.action_noise = action_noise
     self.test_action_noise = 0.2 # FIXME: make it passed in from outside.
-    
+   
+    self.test_domain = 0
+    #TODO: for any other environments, this needs to be added
+    self.test_domains = [0.4, 0.75] 
+
     self.obs_vec = []
     self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
+    self.catastrophe_probs = []
     self.wall_hits = 0
     self.last_trajectory = None
     self.difficulty = difficulty
 
+    self.mode = 'train'
     self.num_runs = 0
     self.reset()
 
@@ -365,8 +371,10 @@ class PointmassEnv(gym.Env):
           # self.action_noise = np.random.uniform(low=0.0, high=1.0) 
           # print('Resetting the environment. action_noise: ' + str(self.action_noise))
           self.action_noise = 0.5 # TODO: vary this across envs
+          self.mode = mode
       elif mode == 'test':
           self.action_noise = self.test_action_noise
+          self.mode = mode
       else:
           raise ValueError('Unrecognized mode: ' + mode)
 
@@ -417,18 +425,16 @@ class PointmassEnv(gym.Env):
     (i2, j2) = self._discretize_state(goal.copy())
     return self._apsp[i1, j1, i2, j2]
 
-
   def simulate_step(self, state, action):
-    num_substeps = 1
-    dt = 1 / num_substeps
-    num_axis = len(action)
-    for _ in np.linspace(0, 1, num_substeps):
-      for axis in range(num_axis):
-        new_state = state.copy()
-        new_state[axis] += dt * action[axis]
+    print('State before: ', state)
+    print('Action: ', action)
 
-        if not self._is_blocked(new_state):
-          state = new_state
+    new_state = state.copy()
+    new_state += action
+
+    if not self._is_blocked(new_state):
+      state = new_state
+
     return state
     
   def _discretize_state(self, state, resolution=1.0):
@@ -535,6 +541,9 @@ class PointmassEnv(gym.Env):
     # obs_vec is used for plotting trajectories.
     self.obs_vec.append(extended_obs.copy())
 
+    if catastrophe and self.mode == 'test':
+        done = True
+
     return extended_obs, reward, done, info
 
   @property
@@ -601,10 +610,18 @@ class PointmassEnv(gym.Env):
     self.plt.scatter([goal[0]], [goal[1]], marker='*',
                 color='green', s=200, label='goal')
 
+    """
     # Annotate rewards
     for i in range(len(obs_vec)):
         unnormalized_obs = self._unnormalize_obs(obs_vec[i, :2])
         self.plt.annotate(f"{obs_vec[i, 2]:.1f}", self.get_dist_and_reward(unnormalized_obs))
+    """
+
+    # Annotate catastrophe probs
+    if len(self.catastrophe_probs) > 0:
+        for i in range(len(obs_vec) - 1):
+            self.plt.annotate("{:.2f}".format(self.catastrophe_probs[i]), obs_vec[i, :2])
+        self.catastrophe_probs = []
 
     # Draw a rewarded states for sparse rewards
     # Draw catastrophe states
@@ -636,13 +653,16 @@ class PointmassEnv(gym.Env):
     self.plt.legend()
     self.plt.savefig(self.traj_filepath + 'sampled_traj_' + str(self.num_runs) + '.png')
 
-  def plot_density_graph(self):
+  def plot_density_graph(self, fig_name):
     self.plt.clf()
     H, xedges, yedges = np.histogram2d(self.replay_buffer[:,0], self.replay_buffer[:,1], range=[[0., 1.], [0., 1.]], density=True)
     self.plt.imshow(np.rot90(H), interpolation='bicubic')
     self.plt.colorbar()
     self.plt.title('State Density')
-    self.fig.savefig(self.traj_filepath + 'density' + '.png', bbox_inches='tight')
+    self.fig.savefig(self.traj_filepath + fig_name + '.png', bbox_inches='tight')
+
+    # clears buffer
+    self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
 
   def get_last_trajectory(self):
     return self.last_trajectory

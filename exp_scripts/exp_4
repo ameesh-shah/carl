@@ -1,0 +1,1 @@
+python3 mbexp.py --env pointmass-medium --frac_unsafe_pretraining 0.5 --ctrl_type PuP --expname real_experiment_medium_frac_0_5 --ninit_rollouts 10
