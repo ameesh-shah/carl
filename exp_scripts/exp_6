@@ -1,1 +1,1 @@
-python3 mbexp.py --env pointmass-medium --frac_unsafe_pretraining 0 --ctrl_type MPC --expname real_experiment_medium_mpc --ninit_rollouts 10
+python3 mbexp.py --env pointmass-medium --frac_unsafe_pretraining 0 --ctrl_type MPC --expname real_experiment_medium_mpc --ninit_rollouts 1

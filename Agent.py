@@ -7,6 +7,8 @@ import time
 import numpy as np
 from tqdm import trange
 
+import torch
+TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
 
@@ -27,6 +29,7 @@ class Agent:
         Returns: (dict) A dictionary containing data from the rollout.
         """
         times, rewards = [], []
+        catastrophes = 0
         policy.mode = mode
         # env.reset selects a random environment with the train/test distribution
         O, A, reward_sum, done = [env.reset(mode=mode)], [], 0, False
@@ -44,8 +47,30 @@ class Agent:
             O.append(obs)
             reward_sum += reward
             rewards.append(reward)
+
+            # Run through model to see the catastrophe prob
+            proc_obs = policy.obs_preproc(O[t])
+            inputs = torch.cat((torch.Tensor(proc_obs).to(TORCH_DEVICE), torch.Tensor(policy_action).to(TORCH_DEVICE)), dim=-1)
+            # Getting catastrophe prob for a state
+#            import pdb; pdb.set_trace()
+            mean, var, catastrophe_prob = policy.model(inputs)
+            print("CAT PROB: ", catastrophe_prob)
+            mean = torch.squeeze(mean)
+            obs_change = torch.mean(mean, dim=0).detach().cpu().numpy()
+            next_obs = O[t][:2] + obs_change 
+            var_over_bootstrap = torch.sum(torch.var(mean, dim=0), dim=-1)
+            env.epistemic_vars.append((O[t], next_obs, var_over_bootstrap.detach().cpu().numpy()))
+
+            catastrophe_prob[catastrophe_prob != catastrophe_prob] = 0.
+            _catastrophe_prob = torch.mean(catastrophe_prob)
+            _catastrophe_prob = torch.sigmoid(_catastrophe_prob)
+            env.catastrophe_probs.append(_catastrophe_prob.detach().cpu().numpy())
+            if info['Catastrophe']:
+                catastrophes += 1 
+
             if done:
                 break
+        env.plot_epistemic_var(policy.logdir)
         if record:
             env.close()
         print("Average action selection time: ", np.mean(times))
