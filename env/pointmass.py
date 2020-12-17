@@ -385,9 +385,9 @@ class PointmassEnv(gym.Env):
           self.last_trajectory = self.plot_trajectory()
 
       if mode == 'train':
-          self.action_noise = np.random.uniform(low=0.0, high=0.5) 
+          # self.action_noise = np.random.uniform(low=0.0, high=0.5) 
           print('Resetting the environment. action_noise: ' + str(self.action_noise))
-          # self.action_noise = 0.5 # TODO: vary this across envs
+          self.action_noise = 0.1 # TODO: vary this across envs
           self.mode = mode
       elif mode == 'test':
           self.action_noise = self.test_domain
@@ -444,16 +444,15 @@ class PointmassEnv(gym.Env):
 
 
   def simulate_step(self, state, action):
-    num_substeps = 1
-    dt = 1 / num_substeps
-    num_axis = len(action)
-    for _ in np.linspace(0, 1, num_substeps):
-      for axis in range(num_axis):
-        new_state = state.copy()
-        new_state[axis] += dt * action[axis]
+    print('State before: ', state)
+    print('Action: ', action)
 
-        if not self._is_blocked(new_state):
-          state = new_state
+    new_state = state.copy()
+    new_state += action
+
+    if not self._is_blocked(new_state):
+      state = new_state
+
     return state
     
   def _discretize_state(self, state, resolution=1.0):
@@ -486,6 +485,15 @@ class PointmassEnv(gym.Env):
       return True
     # Check if the state overlaps with wall
     (i, j) = self._discretize_state(state)
+    """
+    print('Inside _is_blocked')
+    print('state', state)
+    print('i,j: ')
+    print(i)
+    print(j)
+    print(self._walls[i, j])
+    # import pdb; pdb.set_trace()
+    """
     return (self._walls[i, j] == 1)
 
   def get_dist_and_reward(self, state):
@@ -522,9 +530,15 @@ class PointmassEnv(gym.Env):
     #
     # We also count the number of time the agent runs into the wall.
     # A trained agent should minimize the number of times hitting the wall.
+    print('state')
+    print(self.state)
+    print('next state')
+    print(next_state)
+    print('action')
+    print(action)
     if np.array_equal(next_state, self.state):
         print("CATASTROPHE")
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         catastrophe = True
     else:
         catastrophe = False
