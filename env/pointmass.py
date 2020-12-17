@@ -4,6 +4,7 @@ import numpy as np
 import gym
 import pickle
 import torch
+from pathlib import Path
 
 WALLS = {
     'Small':
@@ -286,6 +287,7 @@ class PointmassEnv(gym.Env):
     self.fig = self.plt.figure()
     
     self.action_dim = self.ac_dim = 2
+    self.epistemic_vars = []
     # Normal observation dim + random variable + catastrophe prob
     # Similar to cartpole
     self.observation_dim = self.obs_dim = 5 # x, y, action_noise, catastrophe_prob # TODO: vary this across envs
@@ -700,6 +702,31 @@ class PointmassEnv(gym.Env):
 
     # clears buffer
     self.replay_buffer = np.array([]).reshape((0, self.obs_dim))
+
+  def plot_epistemic_var(self, logdir):
+      if logdir is not None:
+          logdir = logdir + "/"
+          Path(logdir).mkdir(exist_ok=True)
+      else:
+          logdir = self.traj_filepath
+      self.plt.clf()
+      cur_obs = np.array([e[0] for e in self.epistemic_vars])
+      next_obs = np.array([e[1] for e in self.epistemic_vars])
+      var = np.array([e[2] for e in self.epistemic_vars])
+      self.plt.scatter(cur_obs[:,0], cur_obs[:,1], c=var)
+      self.plt.xlim(0,1)
+      self.plt.ylim(0,1)
+      self.plt.colorbar()
+      self.fig.savefig(logdir + "epistemic_var_cur")
+
+      self.plt.clf()
+      self.plt.scatter(next_obs[:,0], next_obs[:,1], c=var)
+      self.plt.xlim(0,1)
+      self.plt.ylim(0,1)
+      self.plt.colorbar()
+      self.fig.savefig(logdir + "epistemic_var_next")
+
+      self.epistemic_vars = []
 
   def get_last_trajectory(self):
     return self.last_trajectory

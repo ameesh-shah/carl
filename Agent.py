@@ -55,6 +55,11 @@ class Agent:
 #            import pdb; pdb.set_trace()
             mean, var, catastrophe_prob = policy.model(inputs)
             print("CAT PROB: ", catastrophe_prob)
+            mean = torch.squeeze(mean)
+            obs_change = torch.mean(mean, dim=0).detach().cpu().numpy()
+            next_obs = O[t][:2] + obs_change 
+            var_over_bootstrap = torch.sum(torch.var(mean, dim=0), dim=-1)
+            env.epistemic_vars.append((O[t], next_obs, var_over_bootstrap.detach().cpu().numpy()))
 
             catastrophe_prob[catastrophe_prob != catastrophe_prob] = 0.
             _catastrophe_prob = torch.mean(catastrophe_prob)
@@ -67,6 +72,7 @@ class Agent:
 
             if done:
                 break
+        env.plot_epistemic_var(policy.logdir)
         if record:
             env.close()
         print("Average action selection time: ", np.mean(times))
