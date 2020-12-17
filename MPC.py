@@ -227,7 +227,6 @@ class MPC:
         # FIXME: add catastrophe label and preproc / postproc function
         self.train_targs = np.concatenate([self.train_targs] + new_train_targs, axis=0)
         print("viewing train targs")
-        import pdb; pdb.set_trace()
         # Train the model
         self.has_been_trained = True
 
@@ -405,7 +404,6 @@ class MPC:
             self.prev_sol = np.concatenate([np.copy(soln)[self.per * self.dU:], np.zeros(self.per * self.dU)])
             # ac_buf: (self.per, ac_dim)
             self.ac_buf = soln[:self.per * self.dU].reshape(-1, self.dU)
-            import pdb; pdb.set_trace()
 
             return self.act(obs, t)
 

@@ -63,7 +63,6 @@ class Agent:
             env.catastrophe_probs.append(_catastrophe_prob.detach().cpu().numpy())
 
             if info['Catastrophe']:
-                import pdb; pdb.set_trace()
                 catastrophes += 1
 
             if done:

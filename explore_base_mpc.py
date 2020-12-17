@@ -48,15 +48,17 @@ class ExploreMPC(MPC):
         cur_obs = cur_obs.expand(self.optimizer.popsize * self.npart, -1)
 
         supervised_cost = self._compile_cost_reward(ac_seqs, cur_obs)
-        assert supervised_cost.shape == (self.optimizer.popsize,)
+        normalized_supervised = normalize(supervised_cost, np.mean(supervised_cost), np.std(supervised_cost))
+        assert normalized_supervised.shape == (self.optimizer.popsize,)
 
         # only explore during train time
         if self.mode == "train":
             intrinsic_cost = self._compile_cost_intrinsic(ac_seqs, cur_obs)
-            assert intrinsic_cost.shape == (self.optimizer.popsize,)
+            normalized_intrinsic = normalize(intrinsic_cost, np.mean(intrinsic_cost), np.std(intrinsic_cost))
+            assert normalized_intrinsic.shape == (self.optimizer.popsize,)
             # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
-            return (100 * intrinsic_cost + supervised_cost) / 2.0
-        return supervised_cost
+            return normalized_intrinsic + normalized_supervised
+        return normalized_supervised
         # print(f'Intrinsic cost: {intrinsic_cost} // Supervised cost: {supervised_cost}')
         
         """
@@ -72,8 +74,6 @@ class ExploreMPC(MPC):
         print((normalize(intrinsic_cost, np.mean(intrinsic_cost), np.std(intrinsic_cost)) + normalize(supervised_cost, np.mean(supervised_cost), np.std(supervised_cost))))
         # return (intrinsic_cost + supervised_cost) / 2.0
 
-        normalized_intrinsic = normalize(intrinsic_cost, np.mean(intrinsic_cost), np.std(intrinsic_cost))
-        normalized_supervised = normalize(supervised_cost, np.mean(supervised_cost), np.std(supervised_cost))
         return normalized_intrinsic + normalized_supervised
         """
 
@@ -113,6 +113,7 @@ class ExploreMPC(MPC):
                 catastrophe_prob = next_obs[..., -1]
                 print(catastrophe_prob)
                 cost = -(10000 * catastrophe_prob)  # negate so cost is in [-100, 0] (lowest cost for catastrophe_prob=1)
+                cost[torch.abs(cost) < 0.01] = 1000
                 print("cost: ", cost)
             # cost: (popsize, npart)
             cost = cost.view(-1, self.npart)

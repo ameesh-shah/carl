@@ -93,7 +93,7 @@ if __name__ == "__main__":
     parser.add_argument('--no_catastrophe_pred', action='store_true',
                          help='if this flag is set, disables training and utilizing catastrophe prediction. Should be enabled \
                              if training CARL (Reward) or MB + Finetune')
-    parser.add_argument('--percentile', type=int, default=100,
+    parser.add_argument('--percentile', type=int, default=40,
                         help='caution parameter (gamma/beta)')
     parser.add_argument('--test_percentile', type=int, default=50,
                         help='caution parameter during test time (gamma/beta)')
